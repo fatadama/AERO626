@@ -92,12 +92,12 @@ def simMeasurementFunction(xk,t):
 
 def main(argin='./'):
     # output file
-    #FOUT = open('python_benchmark.csv','w')
-    #FOUT.write('t,x1,x2,ymeas1,ymeas2,x1hat,x2hat,P11,P22\n');
+    FOUT = open('python_benchmark.csv','w')
+    FOUT.write('t,x1,x2,ymeas1,ymeas2,x1hat,x2hat,P11,P22\n');
 
     # initialize UKF
-    Qkin = np.array([[0.2]])
-    #Qkin = np.array([[20.0]])
+    #Qkin = np.array([[0.2]])
+    Qkin = np.array([[20.0]])
     UKF = ukf.ukf(2,1,1,stateDerivativeEKF,Qk = Qkin)
 
     Rkin = np.array([ [sigma_y1*sigma_y1] ])
@@ -113,18 +113,11 @@ def main(argin='./'):
 
     print(nSteps)
 
-    UKF.sync(0.01,np.array([0.0]),measFunction,Rkin)
-
-    return
-
     xkl = np.zeros((nSteps,2))
     xtl = np.zeros((nSteps,2))
     Pkl = np.zeros((nSteps,2))
     tl = np.zeros((nSteps,))
     for k in range(nSteps):
-        # propagte
-        EKF.propagateRK4(dt)
-
         # simulate
         y = sp.odeint(stateDerivative,xk,np.array([tsim,tsim+dt]),args=([],) )
         xk = y[-1,:].copy()
@@ -133,17 +126,19 @@ def main(argin='./'):
         tsim = tsim + dt
         # measurement
         ymeas = simMeasurementFunction(xk,tsim)
-        # update EKF
-        EKF.update(tsim,ymeas,measFunction,measGradient,Rkin)
+
+        # sync UKF to current time
+        UKF.sync(dt,ymeas,measFunction,Rkin)
+
         # log to file
-        FOUT.write('%f,%f,%f,%f,%f,%f,%f,%f\n' % (tsim,xk[0],xk[1],ymeas[0],EKF.xhat[0],EKF.xhat[1],EKF.Pk[0,0],EKF.Pk[1,1]) )
+        FOUT.write('%f,%f,%f,%f,%f,%f,%f,%f\n' % (tsim,xk[0],xk[1],ymeas[0],UKF.xhat[0],UKF.xhat[1],UKF.Pk[0,0],UKF.Pk[1,1]) )
         # log to data
-        xkl[k,0] = EKF.xhat[0]
-        xkl[k,1] = EKF.xhat[1]
+        xkl[k,0] = UKF.xhat[0]
+        xkl[k,1] = UKF.xhat[1]
         xtl[k,0] = xk[0]
         xtl[k,1] = xk[1]
-        Pkl[k,0] = EKF.Pk[0,0]
-        Pkl[k,1] = EKF.Pk[1,1]
+        Pkl[k,0] = UKF.Pk[0,0]
+        Pkl[k,1] = UKF.Pk[1,1]
         tl[k] = tsim
 
     print("Completed sim")

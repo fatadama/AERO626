@@ -50,9 +50,14 @@ class ukf():
         self.t = tInit
         # set flag to initialized
         self.initFlag = True
-    ## Propagate by time dt and then perform Kalman update
+    ## Propagate by time dt and then perform Kalman update, using Euler integration
+    #   @param dt time increment
+    #   @param ymeas measurement
+    #   @param measurementFunction function pointer of the form: yexp = measurementFunction(x,t,g) where g is the measurement noise vector, of the same length as y
+    #   @param Rk measurement noise covariance matrix, of size ny x ny, ny is length of the measurement vector
     def sync(self,dt,ymeas,measurementFunction,Rk):
         # constants
+        # TODO move computation of weights and filter parameters to the initialization step
         ny = len(ymeas)
         L = self.n+self.nv+ny
 
@@ -83,7 +88,7 @@ class ukf():
             XAUG[:,k+1] = xaug + gamm*Psq[:,k]
             XAUG[:,k+1+L] = xaug - gamm*Psq[:,k]
         # propagate each sigma point
-        #print(XAUG.transpose())
+
         self.xhat = np.zeros(self.n)
         for k in range(2*L+1):
             dx = self.propagateFunction(XAUG[0:self.n,k],self.t,self.u,XAUG[self.n:(self.n+self.nv),k])
@@ -94,46 +99,38 @@ class ukf():
         self.Pk = np.zeros((self.n,self.n))
         for k in range(2*L+1):
             self.Pk = self.Pk + wc[k]*np.outer( XAUG[0:self.n,k]-self.xhat,(XAUG[0:self.n,k]-self.xhat) )
-
-        print(self.Pk)
-        print(self.xhat)
-
         # pass the propagated state through the measurement function
         YAUG = np.zeros((ny,2*L+1))
         yhat = np.zeros(ny)
         for k in range(2*L+1):
             YAUG[:,k] = measurementFunction(XAUG[0:self.n,k],self.t,XAUG[(self.n+self.nv):L,k])
             yhat = yhat + wm[k]*YAUG[:,k]
-        print(YAUG.transpose())
         # compute covariance and cross covariance
         Pyy = np.zeros((ny,ny))
         Pxy = np.zeros((self.n,ny))
         for k in range(2*L+1):
             Pyy = Pyy + wc[k]*np.outer(YAUG[:,k]-yhat,YAUG[:,k]-yhat)
             Pxy = Pxy + wc[k]*np.outer(XAUG[0:self.n,k]-self.xhat,YAUG[:,k]-yhat)
-        print(Pyy)
-        print(Pxy)
+        # Kalman gain
+        Kk = np.dot(Pxy,np.linalg.inv(Pyy))
+        # state update
+        self.xhat = self.xhat + np.dot(Kk,ymeas-yhat)
+        # covariance update
+        self.Pk = self.Pk-np.dot(Kk,Pxy.transpose())
 
-
-    def propagateRK4(self,dt):
-        Pcol = np.reshape(self.Pk,(self.n*self.n,))
-        xaug = np.concatenate((self.xhat,Pcol))
-
+    def propagateRK4(self,dt,xk):
         # one step RK4
         #h = dt
         h6 = 1.0/6.0
 
-        k1 = dt*self.derivatives(xaug,self.t,self.u)
-        k2 = dt*self.derivatives(xaug+0.5*k1,self.t+0.5*dt,self.u)
-        k3 = dt*self.derivatives(xaug+0.5*k2,self.t+0.5*dt,self.u)
-        k4 = dt*self.derivatives(xaug+k3,self.t+dt,self.u)
+        k1 = dt*self.propagateFunction(xk,self.t,self.u)
+        k2 = dt*self.propagateFunction(xk+0.5*k1,self.t+0.5*dt,self.u)
+        k3 = dt*self.propagateFunction(xk+0.5*k2,self.t+0.5*dt,self.u)
+        k4 = dt*self.propagateFunction(xk+k3,self.t+dt,self.u)
         # update the state
-        xaug = xaug + h6*(k1+2.0*k2+2.0*k3+k4)
+        xk = xk + h6*(k1+2.0*k2+2.0*k3+k4)
         # store
-        self.xhat = xaug[0:self.n].copy()
-        self.Pk = xaug[self.n:].reshape((self.n,self.n))
-        self.t = self.t + dt
-        return
+        return xk
     def derivatives(self,xarg,ts,uarg):
         xk = xarg[0:self.n]
         Pk = np.reshape(xarg[self.n:],(self.n,self.n) )
@@ -148,55 +145,4 @@ class ukf():
         Pdotcol = Pdot.reshape((self.n*self.n,))
         dx = np.concatenate((dxstate,Pdotcol))
         return dx
-
-    ## propagate(dt) - propagate state for dt seconds using Euler integration
-    #   @param dt the time for which to propagate
-    def propagate(self,dt):
-        # first order Euler approximation to propagate, for now
-        xkprior = self.xhat + dt*self.propagateFunction(self.xhat,self.t,self.u)
-        # discretized function gradient
-        Fk = self.propagateGradient(self.xhat,self.t,self.u)*dt + np.eye(self.n)
-        # discretized process noise matrix
-        Gk = self.processNoiseMatrix(self.xhat,self.t,self.u)*dt
-        # update the state
-        self.xhat = xkprior.copy()
-
-        #print("Fk:",Fk)
-        #print("Gk:",Gk)
-        #print("Pk:",self.Pk)
-        #print("G*Q*G':",np.dot(np.dot(Gk,self.Qk),Gk.transpose()) )
-        #print("F*P*F':",np.dot(np.dot(Fk,self.Pk),Fk.transpose()) )
-
-        # propagate the covariance
-        self.Pk = np.dot(np.dot(Fk,self.Pk),Fk.transpose() ) + np.dot(np.dot(Gk,self.Qk),Gk.transpose() )
-        # propagate the time
-        self.t = self.t + dt
-        #print(self.t,self.xhat,self.Pk)
-    ## update(self,xprior,Pkprior,tstamp,yk,measurementFunction,measurementGradient,Rk)
-    #
-    #   update the a priori state using a measurement
-    def update(self,tstamp,yk,measurementFunction,measurementGradient,Rk):
-        # expected output, is independent of the control!
-        yexp = measurementFunction(self.xhat,tstamp)
-        # Kalman gain
-        Hk = measurementGradient(self.xhat,tstamp)
-        invTerm = np.linalg.inv( np.dot(np.dot(Hk,self.Pk),Hk.transpose()) + Rk )
-
-        #print("invterm:",invTerm)
-
-        #print("H'*invTerm:",np.dot(Hk.transpose(),invTerm))
-        #print("Pk:",self.Pk)
-
-        Kk = np.dot(self.Pk,np.dot(Hk.transpose(),invTerm))
-
-        #print("Kk:",Kk)
-
-        # update the prior state
-        self.xhat = self.xhat + np.dot( Kk,yk-1.0*yexp )
-        # update the prior covariance
-
-        #print("Kk*Hk*Pk:",np.dot(np.dot(Kk,Hk),self.Pk))
-
-        self.Pk = np.dot((np.identity(self.n) - np.dot(Kk,Hk)),self.Pk)
-        #print(self.xhat,self.Pk)
 

@@ -1,3 +1,9 @@
+# CSV files
+*.csv
+
+# system backup files
+*~
+
 #python compiled
 *.pyc
 

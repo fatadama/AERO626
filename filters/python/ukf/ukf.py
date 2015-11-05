@@ -55,7 +55,8 @@ class ukf():
     #   @param ymeas measurement
     #   @param measurementFunction function pointer of the form: yexp = measurementFunction(x,t,g) where g is the measurement noise vector, of the same length as y
     #   @param Rk measurement noise covariance matrix, of size ny x ny, ny is length of the measurement vector
-    def sync(self,dt,ymeas,measurementFunction,Rk):
+    #   @param flag_rk4 (True) Set to True to use runge-kutta 4th order propagation for sigma points. Uses first-order Euler integration otherwise. Default: RK4
+    def sync(self,dt,ymeas,measurementFunction,Rk,flag_rk4=True):
         # constants
         # TODO move computation of weights and filter parameters to the initialization step
         ny = len(ymeas)
@@ -87,12 +88,14 @@ class ukf():
         for k in range(L):
             XAUG[:,k+1] = xaug + gamm*Psq[:,k]
             XAUG[:,k+1+L] = xaug - gamm*Psq[:,k]
-        # propagate each sigma point
-
+        # propagate each sigma point and compute the apriori state
         self.xhat = np.zeros(self.n)
         for k in range(2*L+1):
-            dx = self.propagateFunction(XAUG[0:self.n,k],self.t,self.u,XAUG[self.n:(self.n+self.nv),k])
-            XAUG[0:self.n,k] = XAUG[0:self.n,k]+dt*dx
+            if not flag_rk4:
+                dx = self.propagateFunction(XAUG[0:self.n,k],self.t,self.u,XAUG[self.n:(self.n+self.nv),k])
+                XAUG[0:self.n,k] = XAUG[0:self.n,k]+dt*dx
+            else:
+                XAUG[0:self.n,k] = self.propagateRK4(dt,XAUG[0:self.n,k],XAUG[self.n:(self.n+self.nv),k])
             # compute the apriori state
             self.xhat = self.xhat + wm[k]*XAUG[0:self.n,k]
         # compute the apriori covariance
@@ -117,32 +120,21 @@ class ukf():
         self.xhat = self.xhat + np.dot(Kk,ymeas-yhat)
         # covariance update
         self.Pk = self.Pk-np.dot(Kk,Pxy.transpose())
-
-    def propagateRK4(self,dt,xk):
+    ## propagateRK4(self,dt,xk,vk) Propagate a given state xk with constant process noise vk over an interval dt.
+    #
+    # Uses a single runge-kutta timestep without adaptation. If you need to propagate for long periods of time without measurements, this implementation will not be suitable
+    #   @param dt interval overwhich is propagate
+    #   @param xk current state
+    #   @param vk current process noise for propagation
+    def propagateRK4(self,dt,xk,vk):
         # one step RK4
-        #h = dt
         h6 = 1.0/6.0
 
-        k1 = dt*self.propagateFunction(xk,self.t,self.u)
-        k2 = dt*self.propagateFunction(xk+0.5*k1,self.t+0.5*dt,self.u)
-        k3 = dt*self.propagateFunction(xk+0.5*k2,self.t+0.5*dt,self.u)
-        k4 = dt*self.propagateFunction(xk+k3,self.t+dt,self.u)
+        k1 = dt*self.propagateFunction(xk,self.t,self.u,vk)
+        k2 = dt*self.propagateFunction(xk+0.5*k1,self.t+0.5*dt,self.u,vk)
+        k3 = dt*self.propagateFunction(xk+0.5*k2,self.t+0.5*dt,self.u,vk)
+        k4 = dt*self.propagateFunction(xk+k3,self.t+dt,self.u,vk)
         # update the state
         xk = xk + h6*(k1+2.0*k2+2.0*k3+k4)
         # store
         return xk
-    def derivatives(self,xarg,ts,uarg):
-        xk = xarg[0:self.n]
-        Pk = np.reshape(xarg[self.n:],(self.n,self.n) )
-        # state derivative
-        dxstate = self.propagateFunction(xk,ts,uarg)
-        # Jacobian
-        Fk = self.propagateGradient(xarg,ts,uarg)
-        # process noise matrix
-        Gk = self.processNoiseMatrix(xarg,ts,uarg)
-        # Pdot = F*P+P*F'+G*Q*G'
-        Pdot = np.dot(Fk,Pk)+np.dot(Pk,Fk.transpose()) + np.dot(Gk,np.dot(self.Qk,Gk.transpose() ))
-        Pdotcol = Pdot.reshape((self.n*self.n,))
-        dx = np.concatenate((dxstate,Pdotcol))
-        return dx
-

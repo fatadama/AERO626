@@ -2,6 +2,7 @@ import sir
 import numpy as np
 import math # for exp()
 import matplotlib.pyplot as plt
+import scipy.integrate as sp
 
 ## measurement noise
 sigma_y = 0.01
@@ -21,17 +22,22 @@ def measurement(x):
 
 ## Function for the filter to propagate a particle. Assumes dynamics: /ddot{x} = -1.5*x
 #
-#   Uses Euler first order itnegration
+#   Uses continuous-time integration
 #   @param xk Particle
 #   @param dt time through which to integrate
 #   @param vk process noise
 def propagateFunction(xk,dt,vk):
-    # Euler first order approximation
+    # continuous-time integration
+    ysim = sp.odeint(propagateDynamics,xk,np.array([0,dt]),args=(vk,))
+    # return new state
+    xk = ysim[-1,:].transpose()
+    return xk
+
+def propagateDynamics(xk,dt,vk):
     dxk = np.zeros(2)
     dxk[0] = xk[1]
     dxk[1] = -1.5*xk[0] + vk[0]
-    xk = xk + dt*dxk
-    return xk
+    return dxk
 
 ## Function for the filter to compute the PDF of a measurement given a prior
 #
@@ -39,7 +45,7 @@ def propagateFunction(xk,dt,vk):
 #   @param xk: the prior (a particle)
 #   @output py_x: the PDF of yt, given xk
 def measurementPdf(yt,xk):
-    # we're measureing position, so the expectation yk is simply xk[0]:
+    # we're measuring position, so the expectation yk is simply xk[0]:
     yk = xk[0]
     # compute the error w.r.t. the measurement
     nk = yt[0] - yk
@@ -53,7 +59,8 @@ def measurementPdf(yt,xk):
 #   @param xk the current state
 def processNoise(xk):
     #draw from the normal distribution
-    vk = np.array([ np.random.uniform(low=-0.5*xk[0],high=0.5*xk[0]) ])
+    #vk = np.array([ np.random.normal()*0.166667*xk[0] ])
+    vk = np.array([ np.random.uniform(low=-0.8*xk[0],high=0.8*xk[0]) ])
     return vk
 
 def initialParticle():
@@ -64,7 +71,7 @@ def initialParticle():
 
 def main():
     # number of particles
-    Nsu = 250
+    Nsu = 100
 
     SIR = sir.sir(2,Nsu,propagateFunction,processNoise,measurementPdf)
 
@@ -72,10 +79,10 @@ def main():
     SIR.init(initialParticle)
     print("SIR.is_init: %d" % (SIR.initFlag))
 
-    tf = 10.0
+    tf = 20.0
     dt = 0.1
     nSteps = int(tf/dt)
-    xsim = X0.copy()
+    xsim = initialParticle()
     tsim = 0.0
 
     px1 = np.zeros((nSteps,SIR.Ns))
@@ -84,10 +91,10 @@ def main():
     xksim = np.zeros((nSteps,2))
 
     for k in range(nSteps):
-        # propagate the simulation
-        dx = eqom(xsim,tsim)
-        # Euler integrate
-        xsim = xsim + dt*dx
+        # ode integration
+        simout = sp.odeint(eqom,xsim,np.array([tsim,tsim+dt]))
+        # store new sim state
+        xsim = simout[-1,:].transpose()
         # update time
         tsim = tsim + dt
         # generate a measurement
@@ -95,12 +102,14 @@ def main():
         # call SIR
         SIR.update(dt,yt)
         # compute Neff
-        print("%f,%f,%f,%f,%f" % (tsim,yt[0],xsim[0],xsim[1]))
+        print("%f,%f,%f,%f" % (tsim,yt[0],xsim[0],xsim[1]))
         # store
         px1[k,:] = SIR.XK[0,:].copy()
         px2[k,:] = SIR.XK[1,:].copy()
         weights[k,:] = SIR.WI.copy()
         xksim[k,:] = (xsim.transpose()).copy()
+        # resample
+        SIR.sample()
     tplot = np.arange(0.0,tf,dt)
 
 
@@ -108,7 +117,12 @@ def main():
     tMesh = np.kron(np.ones((SIR.Ns,1)),tplot).transpose()
     x1Mesh = px1.copy()
     x2Mesh = px2.copy()
-    # the probabilities are from the weights
+    # sort out the most likely particle at each time
+    xml = np.zeros((nSteps,2))
+    for k in range(nSteps):
+        idxk = np.argmax(weights[k,:])
+        xml[k,0] = px1[k,idxk]
+        xml[k,1] = px2[k,idxk]
 
     fig = plt.figure()
 
@@ -122,9 +136,11 @@ def main():
         if k < 2:
             ax[k].plot(tplot,xksim[:,k],'b-')
             if k == 0:
-                ax[k].plot(tplot,px1,'.')
+                #ax[k].plot(tplot,px1,'.')
+                ax[k].plot(tplot,xml[:,k],'r.')
             elif k == 1:
-                ax[k].plot(tplot,px2,'.')
+                #ax[k].plot(tplot,px2,'.')
+                ax[k].plot(tplot,xml[:,k],'r.')
         elif k < 4:
             if k == 2:
                 # plot the discrete PDF as a function of time

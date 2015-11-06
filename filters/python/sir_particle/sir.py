@@ -12,6 +12,7 @@ sys.path.append('../lib')
 import particle_utilities as pu
 
 class sir(sis.sis):
+    '''
     def update(self,dt,ymeas):
         if self.initFlag:
             # for each particle
@@ -28,7 +29,9 @@ class sir(sis.sis):
             weightSum = 1.0/np.sum(self.WI)
             for k in range(self.Ns):
                 self.WI[k] = self.WI[k]*weightSum
-            # resample
-            (self.XK,self.WI,unusedv) = pu.resample(self.XK,self.WI)
         else:
             print("Error: uninitialized filter called")
+    '''
+    def sample(self):
+        # resample
+        (self.XK,self.WI,unusedv) = pu.resample(self.XK,self.WI)

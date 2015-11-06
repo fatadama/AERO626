@@ -1,0 +1,14 @@
+Fitlers developed in python
+
+Folder descriptions:
+ekf - Extended Kalman Filter class definition
+lib - utility functions used by many classes (mainly resampling for particle filters)
+problems - contains implementations of specific problems
+sis_particle - sequential importance sampling particle filter. Impractical due to sample impoverishment
+ukf - Unscented Kalman Filter class definition
+
+Filters roughly in order of complexity:
+- EKF
+- UKF
+- SIS (will not work well in practical problems)
+- SIR

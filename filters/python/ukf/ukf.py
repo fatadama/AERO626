@@ -1,21 +1,12 @@
 '''
-offboard_filter.py
-accepts vicon, gyro, accel, baro? and propagates in between
+ukf.py
+generic UKF class object definition
+dependencies: Numpy, Scipy, base Python. Tested in 2.7, should work in 3.4 as well?
 '''
 
-# data format: [timestamp, accx, accy, accz]
-import sys
-import time
 import numpy as np
-#import matplotlib.pyplot as plt
-# math for pi
+# math for sqrt
 import math
-
-import scipy.integrate as sp
-
-sys.path.append('../lib')
-
-#import kalman
 
 class ukf():
     def __init__(self,n=1,m=1,nv=1,propagateFunction=None,Qk=None):

@@ -35,3 +35,8 @@
 *.exe
 *.out
 *.app
+
+# latex files
+*.gz
+*.log
+*.aux

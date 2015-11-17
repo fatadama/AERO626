@@ -63,7 +63,7 @@ def measurementPdf(yt,xk):
 def processNoise(xk):
     #draw from the normal distribution
     #vk = np.array([ np.random.normal()*0.166667*xk[0] ])
-    vk = np.array([ np.random.uniform(low=-0.8*xk[0],high=0.8*xk[0]) ])
+    vk = np.array([ np.random.uniform(low=-1.0*xk[0],high=1.0*xk[0]) ])
     return vk
 
 def initialParticle():

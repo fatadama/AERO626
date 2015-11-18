@@ -44,19 +44,19 @@ def modality_test(nt=2,mt=100):
         X1u = x1[indtry[nouter],:]
         X2u = x2[indtry[nouter],:]
         # binary search to find the critical value of h
-        hug = [0.1,10.0]
+        hug = [0.5,7.5]
         # nominal value
         hu = (hug[0]+hug[1])*0.5
         # maximum number of iterations
         itermax = 50
         # iteration tolerance
-        itertol = 0.01
+        itertol = 0.1
         # length of data
         n = Np
 
         # grid over which to evaluate
-        x1grid = np.linspace(-15,15,20)
-        x2grid = np.linspace(-10,10,20)
+        x1grid = np.linspace(-15,15,10)
+        x2grid = np.linspace(-10,10,10)
         for i in range(itermax):
             hu = (hug[0]+hug[1])*0.5
 
@@ -125,11 +125,16 @@ def modality_test(nt=2,mt=100):
         # do stuff
         t2 = time.time()
         etaCalc(k,ntry,t2-t1)
+    # write to file
+    FID = open('modality.txt')
+    for k in range(nry):
+        FID.write('%f,%f\n' % (t[indtry[k]],P_unimodal[k]) )
+    FID.close()
 
 
 
 def main():
-    modality_test(2,2)
+    modality_test(20,100)
     print("Completed run")
     raw_input("return to exit")
     return

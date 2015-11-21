@@ -52,6 +52,12 @@ class ekf():
         self.t = tInit
         # set flag to initialized
         self.initFlag = True
+    ## Alternate initialization function for the EKF: initial x, time, and covariance are specified
+    def init_P(self,x0,Pk,tInit):
+        self.xhat = x0.copy()
+        self.Pk = Pk.copy()
+        self.t = tInit
+        self.initFlag = True
     def propagateRK4(self,dt):
         #sp.odeint(self.propagateFunction,self.xhat,np.array([self.t,self.t+dt]),args=([self.u],) )
         Pcol = np.reshape(self.Pk,(self.n*self.n,))
@@ -86,7 +92,6 @@ class ekf():
         Pdotcol = Pdot.reshape((self.n*self.n,))
         dx = np.concatenate((dxstate,Pdotcol))
         return dx
-
     ## propagate(dt) - propagate state for dt seconds using Euler integration
     #   @param dt the time for which to propagate
     def propagate(self,dt):

@@ -16,7 +16,7 @@ end
 Np = size(XK,2)/2;
 
 % number of points to evaluate for unimodality
-ntry = 100;
+ntry = 40;
 indtry = round(linspace(1,length(tspan),ntry));
 
 hcrit_v = zeros(ntry,1);
@@ -35,7 +35,7 @@ for nouter = 1:ntry
     hu = 10.0;
 
     % grid of points
-    hug = [0.1 10.0];
+    hug = [0.1 20.0];
 
     % number of iterations
     itermax = 50;
@@ -43,12 +43,11 @@ for nouter = 1:ntry
     itertol = 1e-2;
 
     for iter = 1:itermax
-
         hu = mean(hug);
 
         n = Np;
-        x1grid = linspace(-15,15,25);
-        x2grid = linspace(-10,10,20);
+        x1grid = linspace(-15,15,10);
+        x2grid = linspace(-10,10,10);
 
         pdf2d = @(x,mu,P) 1/sqrt(2*pi*det(P))*exp(-1/2*(x-mu)'*(P\(x-mu)));
 
@@ -90,7 +89,7 @@ for nouter = 1:ntry
     hcrit = hug(2);
     hcrit_v(nouter) = hcrit;
     %% now perform the check for significance
-    miter = 100;
+    miter = 40;
     next = zeros(miter,1);
 
     for mi = 1:miter
@@ -113,8 +112,8 @@ for nouter = 1:ntry
         hu = hcrit;
 
         n = Np;
-        x1grid = linspace(-15,15,25);
-        x2grid = linspace(-10,10,20);
+        x1grid = linspace(-15,15,10);
+        x2grid = linspace(-10,10,10);
 
         kdegrid = zeros(length(x1grid),length(x2grid));
         for k = 1:length(x1grid)
@@ -141,13 +140,13 @@ for nouter = 1:ntry
     end
 
     P_unimodal(nouter) = length(find(next<=1))/miter;
-    fprintf('Approximate significance level: P = %f for 1 mode\n', P_unimodal(nouter));
+    fprintf('Approximate significance level: P = %f for 1 mode w/ h = %f\n', P_unimodal(nouter),hcrit);
     etaCalc(nouter,ntry,toc);
 
 end
 
 %% draw the probability and the KDE as a function of time
-ANIMATE = 0;
+ANIMATE = 1;
 if ANIMATE
     figure('Renderer','zbuffer')
     

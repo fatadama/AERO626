@@ -8,7 +8,7 @@ import time
 import math
 
 def etaCalc(k,kmax,dt):
-    dtest = dt*float(kmax-1)/float(k)
+    dtest = dt*float(kmax)/float(k+1)
     eta = dtest-dt
     if eta < 120:
         print("Estimated time remaining: %f s" % (eta) )
@@ -37,6 +37,9 @@ def modality_test(nt=2,mt=100):
     hctrit_v = np.zeros(ntry)
     P_unimodal = np.zeros(ntry)
 
+    # open log file
+    FID = open('modality.txt','w')
+
     print("Starting iterations over time data")
     t1 = time.time()
     for nouter in range(ntry):
@@ -44,7 +47,7 @@ def modality_test(nt=2,mt=100):
         X1u = x1[indtry[nouter],:]
         X2u = x2[indtry[nouter],:]
         # binary search to find the critical value of h
-        hug = [0.5,7.5]
+        hug = [0.5,10.0]
         # nominal value
         hu = (hug[0]+hug[1])*0.5
         # maximum number of iterations
@@ -113,9 +116,12 @@ def modality_test(nt=2,mt=100):
                 for j in range(1,x2grid.shape[0]-1):
                     if kdegrid[k,j] > kdegrid[k,j-1] and kdegrid[k,j] > kdegrid[k,j+1] and kdegrid[k,j] > kdegrid[k-1,j] and kdegrid[k,j] > kdegrid[k+1,j]:
                         next[mi] = next[mi] + 1
-        n1 = np.nonzero( next <= 1 )
-        P_unimodal[nouter] = float(len(n1))/float(miter)
+        n1 = np.nonzero( next < 2.0 )
+        print(n1,len(n1[0]))
+        P_unimodal[nouter] = float(len(n1[0]))/float(miter)
         print("Approximate significance level: %f at t = %f" % (P_unimodal[nouter],t[indtry[nouter]]) )
+        print(next)
+        FID.write('%f,%f,%f\n' % ( t[indtry[nouter]], P_unimodal[nouter],hcrit) )
 
         #fig = plt.figure()
         #ax = fig.add_subplot(111)
@@ -124,17 +130,15 @@ def modality_test(nt=2,mt=100):
 
         # do stuff
         t2 = time.time()
-        etaCalc(k,ntry,t2-t1)
-    # write to file
-    FID = open('modality.txt')
-    for k in range(nry):
-        FID.write('%f,%f\n' % (t[indtry[k]],P_unimodal[k]) )
+        etaCalc(nouter,ntry,t2-t1)
+    print("Elapsed time: %f" % (t2-t1))
+    # close file
     FID.close()
 
 
 
 def main():
-    modality_test(20,100)
+    modality_test(40,40)
     print("Completed run")
     raw_input("return to exit")
     return

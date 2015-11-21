@@ -31,7 +31,7 @@ class ukf():
         ## propagateFunction: returns the derivative of the state for propagation. arguments as: propagateFunction(x,t,u)
         self.propagateFunction = propagateFunction
         return
-    ## Initialization function for ekf class
+    ## Initialization function for ukf class
     #   @param yk the measurement used to initialize the function
     #   @param y2xInitFunction function handle, returns xinitial = y2xInitFunction(yk)
     def init(self,yk,y2xInitFunction,tInit):
@@ -40,6 +40,12 @@ class ukf():
         # initialize time
         self.t = tInit
         # set flag to initialized
+        self.initFlag = True
+    ## Alternate initialization function for the UKF: initial x, time, and covariance are specified
+    def init_P(self,x0,Pk,tInit):
+        self.xhat = x0.copy()
+        self.Pk = Pk.copy()
+        self.t = tInit
         self.initFlag = True
     ## Propagate by time dt and then perform Kalman update, using Euler integration
     #   @param dt time increment
@@ -111,6 +117,8 @@ class ukf():
         self.xhat = self.xhat + np.dot(Kk,ymeas-yhat)
         # covariance update
         self.Pk = self.Pk-np.dot(Kk,Pxy.transpose())
+        # time update
+        self.t = self.t + dt
     ## propagateRK4(self,dt,xk,vk) Propagate a given state xk with constant process noise vk over an interval dt.
     #
     # Uses a single runge-kutta timestep without adaptation. If you need to propagate for long periods of time without measurements, this implementation will not be suitable

@@ -40,3 +40,6 @@
 *.gz
 *.log
 *.aux
+
+# Doxygen docs
+doc/

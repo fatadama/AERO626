@@ -12,60 +12,12 @@ epsilon_eqom = 1.0e-2
 a_0 = 2.0
 ## omega_t frequency of forcing function
 omega_t = 1.25
+## DT discretization time for dynamic uncertainty
+DT = 1e-3
 ## q_w standard deviation of the stochastic forcing term in the nonlinear governing dynamics
 q_w = 1.0*DT
-## DT discretization time for dynamic uncertainty
-DT = 1e-2
 ## r_w standard deviation of measurement noise
 r_w = 1.0
-
-class cp_simObject:
-    def __init__(self,funarg=eqom,x0=np.array([0.0,0.0]),Tsin=0.01):
-        ## underlying equation of motion that drives the system dynamics for simulation
-        self._eqomf = funarg
-        ## current state
-        self._xk = x0.copy()
-        ## measurement sample period
-        self._Ts = Tsin
-        ## current simulation time
-        self._t = 0.0
-    ## step propagate the system by ony measurement time step (self._Ts)
-    #
-    # @param[out] yk scalar, most recent measurement with noise
-    # @param[out] xk 2 x 1 numpy array most recent truth state
-    def step(self):
-        # propagate to time t = t + Ts
-        xs = ode_wrapper(self._eqomf,self._xk,np.array([self._t,self._t+self._Ts]))
-        # update time
-        self._t = self._t + self._Ts
-        # update state
-        self._xk = xs[-1,:].copy()
-        # take measurement
-        yk = self.measureFunction()
-        return(yk,self._xk.copy())
-    ## measureFunction take a measurement at the current state, with a process noise defined globally
-    #
-    #@param[out] yk scalar measurement of the position with measurement noise defined by global r_w
-    def measureFunction(self):
-        return (self._xk[0] + np.random.normal(scale=r_w))
-    ## simFull simulate the system for Tf-self._t seconds, taking measurements of the resulting time histories.
-    #
-    #@param[in] Tf final time; the total simulation time is Tf - self._t
-    #@param[out] yk N-length numpy vector defining the measurements at each discrete interval
-    #@param[out] xk [N x 2] numpy array defining the true state history
-    #@param[out] tk N-length numpy vector defining the output times
-    def simFull(self,Tf=1.0):
-        # tk: vector of measurement times
-        tk = np.arange(self._t,Tf+self._Ts,self._Ts)
-        # simulate, getting back the state at the measurement times
-        xk = ode_wrapper(self._eqom,self._xk,tk)
-        # measure at each time in xk
-        yk = np.zeros(len(tk))
-        for k in range(len(tk)):
-            self._xk = xk[k,:].copy()
-            self._t = tk[k]
-            yk[k] = measureFunction()
-        return(yk,xk,tk)
 
 ## ode_wrapper Ensures good integrator convergence by enforcing piecewise-constant noise
 #
@@ -92,7 +44,7 @@ def ode_wrapper(fun,x0,tsp):
     for k in range(len(tdisc)-1):
         if flag_stoch:
             # compute the noise
-            v = np.random.normal(scale=q_w*DT)
+            v = np.random.normal(scale=q_w)
             yp = sp.odeint(fun,y0,tdisc[k:k+2],args=(v,))
         else:
             yp = sp.odeint(fun,y0,tdisc[k:k+2])
@@ -150,3 +102,71 @@ def eqom_stoch(x,t,v=None):
     else:
         dx[1] = dx[1] + v
     return dx
+
+## eqom_stoch_jac Jacobian of eqom_stoch at a given state and time
+#
+#   @param[in] t time
+#   @param[in] x state (position, velocity)
+#   @param[in] v process noise term; dummy here, only for consistent calling form
+def eqom_stoch_jac(x,t,v=None):
+    Fk = np.zeros((2,2))
+    Fk[0,1] = 1.0;
+    Fk[1,0] = 1.0-epsilon_eqom*3.0*x[0]*x[0]
+    return Fk
+
+## eqom_stoch_Gk process noise influence matrix of eqom_stoch at a given state and time
+#
+#   @param[in] t time
+#   @param[in] x state (position, velocity)
+#   @param[in] v process noise term; dummy here, only for consistent calling form
+def eqom_stoch_Gk(x,t,v=None):
+    return np.array([ [0.0],[1.0] ])
+
+
+class cp_simObject:
+    def __init__(self,funarg=eqom,x0=np.array([0.0,0.0]),Tsin=0.01):
+        ## underlying equation of motion that drives the system dynamics for simulation
+        self._eqomf = funarg
+        ## current state
+        self._xk = x0.copy()
+        ## measurement sample period
+        self._Ts = Tsin
+        ## current simulation time
+        self._t = 0.0
+    ## step propagate the system by ony measurement time step (self._Ts)
+    #
+    # @param[out] yk scalar, most recent measurement with noise
+    # @param[out] xk 2 x 1 numpy array most recent truth state
+    def step(self):
+        # propagate to time t = t + Ts
+        xs = ode_wrapper(self._eqomf,self._xk,np.array([self._t,self._t+self._Ts]))
+        # update time
+        self._t = self._t + self._Ts
+        # update state
+        self._xk = xs[-1,:].copy()
+        # take measurement
+        yk = self.measureFunction()
+        return(yk,self._xk.copy())
+    ## measureFunction take a measurement at the current state, with a process noise defined globally
+    #
+    #@param[out] yk scalar measurement of the position with measurement noise defined by global r_w
+    def measureFunction(self):
+        return np.array([ self._xk[0] + np.random.normal(scale=r_w) ])
+    ## simFull simulate the system for Tf-self._t seconds, taking measurements of the resulting time histories.
+    #
+    #@param[in] Tf final time; the total simulation time is Tf - self._t
+    #@param[out] yk N-length numpy vector defining the measurements at each discrete interval
+    #@param[out] xk [N x 2] numpy array defining the true state history
+    #@param[out] tk N-length numpy vector defining the output times
+    def simFull(self,Tf=1.0):
+        # tk: vector of measurement times
+        tk = np.arange(self._t,Tf+self._Ts,self._Ts)
+        # simulate, getting back the state at the measurement times
+        xk = ode_wrapper(self._eqomf,self._xk,tk)
+        # measure at each time in xk
+        yk = np.zeros(len(tk))
+        for k in range(len(tk)):
+            self._xk = xk[k,:].copy()
+            self._t = tk[k]
+            yk[k] = self.measureFunction()
+        return(yk,xk,tk)

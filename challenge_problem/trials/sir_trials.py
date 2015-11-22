@@ -151,7 +151,7 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100):
 
 def main():
 	# number of particles
-	Nsu = 250
+	Nsu = 100
 	global nameBit
 	names = ['sims_01_fast']# test case
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
@@ -159,13 +159,15 @@ def main():
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
 
+		Ns = 1
+
 		nameBit = int(nameNow[5:7])
 		# parse the name
 		if nameBit == 1:
 			# tuned noise levels for the SIR with white noise forcing
 			Qk = np.array([[1.0*dt]])
 			if dt < 0.09:
-				Qk = np.array([[1.0*dt]])
+				Qk = np.array([[10.0/dt]])
 			Rk = np.array([[1.0]])
 		# number of steps in each simulation
 		nSteps = len(tsim)

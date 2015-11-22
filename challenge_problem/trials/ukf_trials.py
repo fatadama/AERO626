@@ -25,12 +25,18 @@ def measurement_ukf(x,t,n):
 	return np.array([[ x[0] + n[0] ]])
 
 def ukf_test(dt,tf,mux0,P0,YK,Qk,Rk):
+	global nameBit
 
-	#Qk = np.array([[1.0*dt]])
-	#Rk = np.array([[1.0]])
-
-	# create UKF object
-	UKF = ukf.ukf(2,0,1,eqom_ukf,Qk)
+	# add in this functionality so we can change the propagation function dependent on the nameBit ... may or may not be needed
+	if nameBit == 1:
+		# create UKF object
+		UKF = ukf.ukf(2,0,1,eqom_ukf,Qk)
+	elif nameBit == 2:
+		# create UKF object
+		UKF = ukf.ukf(2,0,1,eqom_ukf,Qk)
+	elif nameBit == 3:
+		# create UKF object
+		UKF = ukf.ukf(2,0,1,eqom_ukf,Qk)
 
 	nSteps = int(tf/dt)+1
 	ts = 0.0
@@ -62,14 +68,15 @@ def ukf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 	return(xf,Pf)
 
 def main():
+	global nameBit
 	#names = ['sims_01_slow']# test case
 	names = ['sims_01_slow','sims_01_medium','sims_01_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
-		namebit = int(nameNow[5:7])
+		nameBit = int(nameNow[5:7])
 		# parse the name
-		if namebit == 1:
+		if nameBit == 1:
 			# tuned noise levels for the UKF with white noise forcing
 			Qk = np.array([[1.0*dt]])
 			Rk = np.array([[1.0]])
@@ -142,14 +149,14 @@ def main():
 		# plot the mean NEES with the 95% confidence bounds
 		fig2 = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
 		tilt = "UKF, Ts = %.2f, %d sims, " % (dt, Ns)
-		if namebit == 0:
+		if nameBit == 0:
 			tilt = tilt + 'unforced'
-		if namebit == 1:
+		if nameBit == 1:
 			#white-noise only
 			tilt = tilt + 'white-noise forcing'
-		if namebit == 2:
+		if nameBit == 2:
 			tilt = tilt + 'cosine forcing'
-		if namebit == 3:
+		if nameBit == 3:
 			#white-noise and cosine forcing
 			tilt = tilt + 'white-noise and cosine forcing'
 		ax = fig2.add_subplot(111,ylabel='mean NEES',title=tilt)

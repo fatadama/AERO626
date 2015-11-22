@@ -80,7 +80,7 @@ def main():
 		namebit = int(nameNow[5:7])
 		# parse the name
 		if namebit == 1:
-			# this heuristic is a little conservative for the large sample periods, but that's OK
+			# this heuristic produces a reasonable balance between conservative and optimistic at all three sample rates, but the performance at the slow rate still sucks. It is stable, though.
 			Qk = np.array([[1.0 + 50.0*(dt-0.01)-40.0*(dt-0.01)*(dt-0.01)]])
 			Rk = np.array([[1.0]])
 		print(Qk[0,0])

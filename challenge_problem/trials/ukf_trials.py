@@ -69,16 +69,26 @@ def ukf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 
 def main():
 	global nameBit
-	#names = ['sims_01_slow']# test case
-	names = ['sims_01_slow','sims_01_medium','sims_01_fast']
+	names = ['sims_10_fast']# test case
+	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
-		nameBit = int(nameNow[5:7])
+
+		nameBit = int(nameNow[5:7],2)
 		# parse the name
 		if nameBit == 1:
 			# tuned noise levels for the UKF with white noise forcing
 			Qk = np.array([[1.0*dt]])
+			Rk = np.array([[1.0]])
+		if nameBit == 2:
+			# tuned noise levels for the UKF with cosine forcing
+			if dt > .9:# slow sampling
+				Qk = np.array([[3.16/dt]])
+			elif dt > 0.09:# medium sampling
+				Qk = np.array([[2.0/dt]])
+			else:# fast sampling
+				Qk = np.array([[0.8/dt]])
 			Rk = np.array([[1.0]])
 		# number of steps in each simulation
 		nSteps = len(tsim)

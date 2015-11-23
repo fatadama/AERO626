@@ -153,21 +153,32 @@ def main():
 	# number of particles
 	Nsu = 100
 	global nameBit
-	names = ['sims_01_fast']# test case
+	names = ['sims_10_fast']# test case
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
 
-		Ns = 1
+		#Ns = 1
 
-		nameBit = int(nameNow[5:7])
+		nameBit = int(nameNow[5:7],2)
 		# parse the name
 		if nameBit == 1:
 			# tuned noise levels for the SIR with white noise forcing
-			Qk = np.array([[1.0*dt]])
-			if dt < 0.09:
+			Qk = np.array([[0.8]])
+			#Qk = np.array([[1.0*dt]])
+			if dt < 0.09: # fast sampling
 				Qk = np.array([[10.0/dt]])
+			if dt > 0.11: # slow sampling
+				Qk = np.array([[0.1]])
+			Rk = np.array([[1.0]])
+		if nameBit == 2:
+			# tuned noise levels for the SIR with cosine forcing
+			Qk = np.array([[31.6]])
+			if dt < 0.09: # fast sampling
+				Qk = np.array([[1000.0]])
+			if dt > 0.11: # slow sampling
+				Qk = np.array([[10.0]])
 			Rk = np.array([[1.0]])
 		# number of steps in each simulation
 		nSteps = len(tsim)

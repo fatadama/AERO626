@@ -68,7 +68,7 @@ def eqom_det(x,t):
     dx[1] = x[0]-epsilon_eqom*math.pow(x[0],3.0)
     return dx
 
-## eqom_det_f Deterministic equation of motion with forcing
+## eqom_det_f Deterministic equation of motion with cosine forcing and no white noise
 #
 #   @param[in] t time
 #   @param[in] x state (position, velocity)
@@ -121,7 +121,6 @@ def eqom_stoch_jac(x,t,v=None):
 #   @param[in] v process noise term; dummy here, only for consistent calling form
 def eqom_stoch_Gk(x,t,v=None):
     return np.array([ [0.0],[1.0] ])
-
 
 class cp_simObject:
     def __init__(self,funarg=eqom,x0=np.array([0.0,0.0]),Tsin=0.01):

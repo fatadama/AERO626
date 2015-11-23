@@ -1,5 +1,5 @@
-"""@package ekf_trials
-loads data, passes through EKF
+"""@package enkf_trials
+loads data, passes through ensemble Kalman Filter
 """
 
 import numpy as np
@@ -12,102 +12,125 @@ import scipy.stats as stats
 sys.path.append('../')
 import cp_dynamics
 
-sys.path.append('../../filters/python/ekf')
-import ekf
+sys.path.append('../../filters/python/enkf')
+import enkf
 
 sys.path.append('../sim_data')
 import data_loader
 
-def eqom_ekf(x,t,u):
-	return cp_dynamics.eqom_stoch(x,t)
+def eqom_enkf(x,t,u,v):
+	return cp_dynamics.eqom_stoch(x,t,v)
 
-def eqom_jacobian_ekf(x,t,u):
-	return cp_dynamics.eqom_stoch_jac(x,t)
+def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
+	global nameBit
 
-def eqom_gk_ekf(x,t,u):
-	return cp_dynamics.eqom_stoch_Gk(x,t)
+	# measurement influence matrix
+	Hk = np.array([ [1.0,0.0] ])
 
-def measurement_ekf(x,t):
-	return np.array([ x[0] ])
-
-def measurement_gradient(x,t):
-	return np.array([ [1.0,0.0] ])
-
-def ekf_test(dt,tf,mux0,P0,YK,Qk,Rk):
-
-	#Qk = np.array([[1.0*dt]])
-	#Rk = np.array([[1.0]])
-
-	# create EKF object
-	EKF = ekf.ekf(2,0,eqom_ekf,eqom_jacobian_ekf,eqom_gk_ekf,Qk)
+	if flag_adapt:
+		# add in this functionality so we can change the propagation function dependent on the nameBit ... may or may not be needed
+		if nameBit == 1:
+			# create EnKF object
+			ENKF = enkf.adaptive_enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=100)
+		elif nameBit == 2:
+			# create EnKF object
+			ENKF = enkf.adaptive_enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=100)
+		elif nameBit == 3:
+			# create EnKF object
+			ENKF = enkf.adaptive_enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=100)
+	else:
+		# add in this functionality so we can change the propagation function dependent on the nameBit ... may or may not be needed
+		if nameBit == 1:
+			# create EnKF object
+			ENKF = enkf.enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=100)
+		elif nameBit == 2:
+			# create EnKF object
+			ENKF = enkf.enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=100)
+		elif nameBit == 3:
+			# create EnKF object
+			ENKF = enkf.enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=100)
 
 	nSteps = int(tf/dt)+1
 	ts = 0.0
 
-	# initialize EKF
-	EKF.init_P(mux0,P0,ts)
+	#initialize EnKF
+	ENKF.init(mux0,P0,ts)
 
 	xf = np.zeros((nSteps,2))
 	Pf = np.zeros((nSteps,4))
+	Nf = np.zeros(nSteps)
 	tk = np.arange(0.0,tf,dt)
 
-	xf[0,:] = EKF.xhat.copy()
-	Pf[0,:] = EKF.Pk.reshape((4,))
+	#get the mean and covariance estimates
+	Nf[0] = ENKF.get_N()
+	xf[0,:] = np.mean(ENKF.xk,axis=1)
+	Pxx = np.zeros((2,2))
+	for k in range(ENKF.get_N()):
+		Pxx = Pxx + 1.0/(1.0+float(ENKF._N))*np.outer(ENKF.xk[:,k]-xf[0,:],ENKF.xk[:,k]-xf[0,:])
+	Pf[0,:] = Pxx.reshape((4,))
 
 	t1 = time.time()
 	for k in range(1,nSteps):
 		# get the new measurement
 		ym = np.array([YK[k]])
 		ts = ts + dt
-		# sync the EKF, with continuous-time integration
-		EKF.propagate(dt)
-		#EKF.propagateRK4(dt)
-		EKF.update(ts,ym,measurement_ekf,measurement_gradient,Rk)
-		# copy
-		xf[k,:] = EKF.xhat.copy()
-		Pf[k,:] = EKF.Pk.reshape((4,))
+		# sync the ENKF, with continuous-time integration
+		# propagate filter
+		ENKF.propagateOde(dt)
+		# update
+		ENKF.update(ym)
+		# log
+		xf[k,:] = np.mean(ENKF.xk,axis=1)
+		Pxx = np.zeros((2,2))
+		for kj in range(ENKF.get_N()):
+			Pxx = Pxx + 1.0/(1.0+float(ENKF._N))*np.outer(ENKF.xk[:,kj]-xf[k,:],ENKF.xk[:,kj]-xf[k,:])
+		Pf[k,:] = Pxx.reshape((4,))
+		Nf[k] = ENKF.get_N()
 	t2 = time.time()
 	print("Elapsed time: %f sec" % (t2-t1))
 
-	return(xf,Pf)
+	return(xf,Pf,Nf)
 
 def main():
-	#names = ['sims_10_slow']# test case
+	global nameBit
+	names = ['sims_01_medium']
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
-	names = ['sims_10_slow','sims_10_medium','sims_10_fast']
+	#names = ['sims_10_slow','sims_10_medium','sims_10_fast']# test case
+	flag_adapt = True
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
 
 		#Ns = 1
 
-		namebit = int(nameNow[5:7],2)
+		nameBit = int(nameNow[5:7],2)
 		# parse the name
-		if namebit == 1:
-			# this heuristic produces a reasonable balance between conservative and optimistic at all three sample rates, but the performance at the slow rate still sucks. It is stable, though.
-			Qk = np.array([[1.0 + 50.0*(dt-0.01)-40.0*(dt-0.01)*(dt-0.01)]])
+		if nameBit == 1:
+			# tuned noise levels for the ENKF with white noise forcing
+			Qk = np.array([[1.0]])
 			Rk = np.array([[1.0]])
-		elif namebit == 2:
-			# cosine forcing
-			if dt > 0.9:#slow sampling
-				Qk = np.array([[10.0]])
-			elif dt > 0.09:#medium sampling
-				Qk = np.array([[20.0]])
+		if nameBit == 2:
+			# tuned noise levels for the UKF with cosine forcing
+			if dt > .9:# slow sampling
+				Qk = np.array([[3.16/dt]])
+			elif dt > 0.09:# medium sampling
+				Qk = np.array([[2.0/dt]])
 			else:# fast sampling
-				Qk = np.array([[70.0]])
+				Qk = np.array([[0.8/dt]])
 			Rk = np.array([[1.0]])
-			pass
-		print(Qk[0,0])
 		# number of steps in each simulation
 		nSteps = len(tsim)
 		nees_history = np.zeros((nSteps,Ns))
+		Nf_history = np.zeros((nSteps,Ns))
 		e_sims = np.zeros((Ns*nSteps,2))
 		for counter in range(Ns):
 			xk = XK[:,(2*counter):(2*counter+2)]
 			yk = YK[:,counter]
 
-			(xf,Pf) = ekf_test(dt,tf,mu0,P0,yk,Qk,Rk)
+			(xf,Pf,Nf) = enkf_test(dt,tf,mu0,P0,yk,Qk,Rk,flag_adapt)
 
+			# store the number of particles, relevant if adaptive
+			Nf_history[:,counter] = Nf.copy()
 			# compute the unit variance transformation of the error
 			e1 = np.zeros((nSteps,2))
 			chi2 = np.zeros(nSteps)
@@ -124,9 +147,6 @@ def main():
 			e_sims[(counter*nSteps):(counter*nSteps+nSteps),:] = xk-xf
 
 			print("MSE: %f,%f" % (mse[0],mse[1]))
-
-			# chi-square test statistics
-			# (alpha) probability of being less than the returned value: stats.chi2.ppf(alpha,df=Nsims)
 		if Ns < 2:
 			fig1 = plt.figure()
 			ax = []
@@ -153,21 +173,26 @@ def main():
 		
 		# get the mean NEES value versus simulation time across all sims
 		nees_mean = np.sum(nees_history,axis=1)/Ns
+		# get the mean number of particles in time
+		Nf_mean = np.sum(Nf_history,axis=1)/Ns
 		# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
 		chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
 		chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
 
 		# plot the mean NEES with the 95% confidence bounds
 		fig2 = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
-		tilt = "EKF, Ts = %.2f, %d sims, " % (dt, Ns)
-		if namebit == 0:
+		if flag_adapt:
+			tilt = "AENKF, Ts = %.2f, %d sims, " % (dt, Ns)
+		else:
+			tilt = "ENKF, Ts = %.2f, %d sims, " % (dt, Ns)
+		if nameBit == 0:
 			tilt = tilt + 'unforced'
-		if namebit == 1:
+		if nameBit == 1:
 			#white-noise only
 			tilt = tilt + 'white-noise forcing'
-		if namebit == 2:
+		if nameBit == 2:
 			tilt = tilt + 'cosine forcing'
-		if namebit == 3:
+		if nameBit == 3:
 			#white-noise and cosine forcing
 			tilt = tilt + 'white-noise and cosine forcing'
 		ax = fig2.add_subplot(111,ylabel='mean NEES',title=tilt)
@@ -177,8 +202,10 @@ def main():
 		ax.grid()
 		fig2.show()
 		# save the figure
-		fig2.savefig('nees_ekf_' + nameNow + '.png')
-
+		if flag_adapt:
+			fig2.savefig('nees_aenkf_' + nameNow + '.png')
+		else:
+			fig2.savefig('nees_enkf_' + nameNow + '.png')
 		# find fraction of inliers
 		l1 = (nees_mean < chiUpper).nonzero()[0]
 		l2 = (nees_mean > chiLower).nonzero()[0]
@@ -193,25 +220,39 @@ def main():
 		print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
 
 		# save metrics
-		FID = open('metrics_ekf_' + nameNow + '.txt','w')
+		if flag_adapt:
+			FID = open('metrics_aenkf_' + nameNow + '.txt','w')
+		else:
+			FID = open('metrics_enkf_' + nameNow + '.txt','w')
 		FID.write("mse1,mse2,nees_below95,nees_above95\n")
 		FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
 		FID.close()
 
-		# plot all NEES
-		'''
-		fig = plt.figure(figsize=(5.0,2.81))
-		ax = fig.add_subplot(111,ylabel='NEES')
-		ax.plot(tsim,nees_history,'b-')
-		ax.grid()
-		fig.show()
-		'''
+		# plot the mean number of particles
+		if flag_adapt:
+			fig = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
+			tilt = "AENKF, Ts = %.2f, %d sims, " % (dt, Ns)
+			if nameBit == 0:
+				tilt = tilt + 'unforced'
+			if nameBit == 1:
+				#white-noise only
+				tilt = tilt + 'white-noise forcing'
+			if nameBit == 2:
+				tilt = tilt + 'cosine forcing'
+			if nameBit == 3:
+				#white-noise and cosine forcing
+				tilt = tilt + 'white-noise and cosine forcing'
+			ax = fig.add_subplot(111,ylabel='mean particles',title=tilt)
+			ax.plot(tsim,Nf_mean,'b-')
+			ax.grid()
+			fig.show()
+			# save the figure
+			fig.savefig('Nf_aenkf_' + nameNow + '.png')
 
-	raw_input("Return to quit")
 
-	print("Leaving ekf_trials")
-
+	raw_input("Return to exit")
 	return
 
+
 if __name__ == "__main__":
-    main()
+	main()

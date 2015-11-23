@@ -25,9 +25,11 @@ P0 = np.array([ [0.1, 1.0e-6],[1.0e-6, 1.0] ])
 ## initial mean
 mux0 = np.array([0.0,0.0])
 ## number of simulations to run per case
-Ns = 100
+Ns = 10
+#Ns = 100
 ## simulation stop time
-tf = 30.0
+tf = 10.0
+#tf = 30.0
 
 def generate_sim(function,Ts,tf,name=None):
 	nSteps = int(tf/Ts)+1
@@ -101,3 +103,7 @@ def generate_sim(function,Ts,tf,name=None):
 generate_sim(cp_dynamics.eqom_stoch,0.01,tf,name='sims_01_fast')
 generate_sim(cp_dynamics.eqom_stoch,0.1,tf,name='sims_01_medium')
 generate_sim(cp_dynamics.eqom_stoch,1.0,tf,name='sims_01_slow')
+
+generate_sim(cp_dynamics.eqom_det_f,0.01,tf,name='sims_10_fast')
+generate_sim(cp_dynamics.eqom_det_f,0.1,tf,name='sims_10_medium')
+generate_sim(cp_dynamics.eqom_det_f,1.0,tf,name='sims_10_slow')

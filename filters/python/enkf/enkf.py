@@ -104,8 +104,9 @@ class enkf():
 	#
 	#	@param[in] mux n-length numpy vector
 	#	@param[in] Pxx n x n numpy array
-	def init(self,mux,Pxx):
+	def init(self,mux,Pxx,ts=0.0):
 		self.xk = np.random.multivariate_normal(mux,Pxx,size=(self._N,)).transpose()
+		self.t = ts
 		return
 	## propagateOde propagate the system using the scipy integrator
 	def propagateOde(self,dt):
@@ -163,22 +164,37 @@ class adaptive_enkf(enkf):
 	# @param[in] Hk measurement function input matrix
 	# @param[in] Qk process noise covariance matrix
 	# @param[in] Rk measurement noise covariance matrix 
+	# @param[in] Ns number of particles/ensemble members to use
 	# @param[in] tolIn (1.0e-2) tolerance metric used for convergence of the covariance estimate. Aggressive values may fail to converge in Python
-	def __init__(self,n=1,m=1,propagateFunction=None,Hk=None,Qk=None,Rk=None,tolIn = 0.01):
+	def __init__(self,n=1,m=1,propagateFunction=None,Hk=None,Qk=None,Rk=None,Ns=None,tolIn = 0.01):
 		# initialization is the same as for enkf, with some additional class members
 		## convergence value for the mean and covariance
 		self._convTol= tolIn
-		Ns = 2*n+1
+		if Ns is None:
+			Ns = 2*n+1
 		# perform normal initialization
 		enkf.__init__(self,n,m,propagateFunction,Hk,Qk,Rk,Ns)
 	## init Initialize the ensemble estimates with the apriori mean and covariance
 	#
 	#	@param[in] mux n-length numpy vector
 	#	@param[in] Pxk n x n numpy array
-	def init(self,mux,Pxk):
+	def init(self,mux,Pxk,ts=0.0):
 		# initialize
 		self.xk = np.random.multivariate_normal(mux,Pxk,size=(self._N,)).transpose()
 		# add more points until we converge
+
+		# compute the predicted mean
+		xhatm = np.mean(self.xk,axis=1)
+		# compute the state covariance Pxx
+		coef = 1.0/(1.0+float(self._N))
+		Pxx = np.zeros((self._n,self._n))
+		for k in range(self._N):
+			Pxx = Pxx + coef*np.outer(self.xk[:,k]-xhatm,self.xk[:,k]-xhatm)
+		# call the convergence function
+		(self.xk,Pxx) = convergenceCheck(self.xk,Pxx,self._convTol)
+		self._N = self.xk.shape[1]
+		print("Initialized adaptive EnKF with %d pts" % (self._N))
+		'''
 		# mean
 		xhatm = np.mean(self.xk,axis=1)
 		# covariance
@@ -203,6 +219,8 @@ class adaptive_enkf(enkf):
 			# error metrics
 			err2 = np.linalg.norm(Pxk-Pxx)/np.linalg.norm(Pxx)
 			print("Increased to %d points,e2 = %f,mu = %f,%f" % (self._N,err2,xhatm[0],xhatm[1]))
+		'''
+		self.t = ts
 		return
 	## propagate the system for dt seconds using a first-order Euler approximation. Adjust the ensemble size as computation proceeds.
 	def propagate(self,dt):
@@ -221,8 +239,6 @@ class adaptive_enkf(enkf):
 	def update(self,ymeas):
 		# compute the predicted mean
 		xhatm = np.mean(self.xk,axis=1)
-		# track uncoverged members
-		notConverged = []
 		# compute the state covariance Pxx
 		coef = 1.0/(1.0+float(self._N))
 		Pxx = np.zeros((self._n,self._n))

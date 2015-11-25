@@ -21,7 +21,7 @@ def etaCalc(k,kmax,dt):
         print("Estimated time remaining: %f hrs" % (eta*0.00027777777) )
 
 ## initial covariance
-P0 = np.array([ [0.1, 1.0e-6],[1.0e-6, 1.0] ])
+P0 = np.array([ [2.0, 1.0e-6],[1.0e-6, 1.0] ])
 ## initial mean
 mux0 = np.array([0.0,0.0])
 ## number of simulations to run per case
@@ -100,6 +100,7 @@ def generate_sim(function,Ts,tf,name=None):
 # run test sims
 # sims_xx_fast/medium/slow format: xx is a bitstring, where the lowest bit indicates if the Gaussian process noise is on, and highest bit indicates if the forcing function is on
 # fast/medium/slow refers to the sample rate: (0.01,0.1,1.0)
+'''
 generate_sim(cp_dynamics.eqom_stoch,0.01,tf,name='sims_01_fast')
 generate_sim(cp_dynamics.eqom_stoch,0.1,tf,name='sims_01_medium')
 generate_sim(cp_dynamics.eqom_stoch,1.0,tf,name='sims_01_slow')
@@ -107,3 +108,6 @@ generate_sim(cp_dynamics.eqom_stoch,1.0,tf,name='sims_01_slow')
 generate_sim(cp_dynamics.eqom_det_f,0.01,tf,name='sims_10_fast')
 generate_sim(cp_dynamics.eqom_det_f,0.1,tf,name='sims_10_medium')
 generate_sim(cp_dynamics.eqom_det_f,1.0,tf,name='sims_10_slow')
+'''
+# very long period observations - bifurcation case
+generate_sim(cp_dynamics.eqom_stoch,10.0,60.0,name='sims_01_bifurcation')

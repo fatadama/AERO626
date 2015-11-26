@@ -23,22 +23,34 @@ import data_loader
 def eqom_enkf(x,t,u,v):
 	return cp_dynamics.eqom_stoch(x,t,v)
 
-def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
+## default measurement function for the case with linear position measurement
+def measurement_enkf(x,t,u,n):
+	return np.array([x[0]+n[0]])
+
+## measurement function for the case with measurement of position squared with linear measurement noise
+def measurement_uninformative(x,t,u,n):
+	return np.array([x[0]*x[0]+n[0]])
+
+def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False,flag_informative=True):
 	global nameBit
 
 	# measurement influence matrix
 	Hk = np.array([ [1.0,0.0] ])
 
 	# add in this functionality so we can change the propagation function dependent on the nameBit ... may or may not be needed
+	if not flag_informative:
+		measure_argument = measurement_uninformative
+	else:
+		measure_argument = measurement_enkf
 	if nameBit == 1:
 		# create EnKF object
-		ENKF = enkf.clustering_enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=250,maxMeans=2)
+		ENKF = enkf.clustering_enkf(2,0,eqom_enkf,measure_argument,Qk,Rk,Ns=250,maxMeans=2)
 	elif nameBit == 2:
 		# create EnKF object
-		ENKF = enkf.clustering_enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=250,maxMeans=2)
+		ENKF = enkf.clustering_enkf(2,0,eqom_enkf,measure_argument,Qk,Rk,Ns=250,maxMeans=2)
 	elif nameBit == 3:
 		# create EnKF object
-		ENKF = enkf.clustering_enkf(2,0,eqom_enkf,Hk,Qk,Rk,Ns=250,maxMeans=2)
+		ENKF = enkf.clustering_enkf(2,0,eqom_enkf,measure_argument,Qk,Rk,Ns=250,maxMeans=2)
 
 	nSteps = int(tf/dt)+1
 	ts = 0.0
@@ -48,21 +60,15 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 
 
 	xf = np.zeros((nSteps,2))
+	# aposteriori state values
 	Xf = np.zeros((nSteps,2,250))
+	# propagated state values
+	Xp = np.zeros((nSteps,2,250))
 	Pf = np.zeros((nSteps,4))
 	Nf = np.zeros(nSteps)
 	tk = np.arange(0.0,tf,dt)
-
-	#get the mean and covariance estimates
-	'''
-	Nf[0] = ENKF.get_N()
-	xf[0,:] = np.mean(ENKF.xk,axis=1)
-	Xf[0,:,:] = ENKF.xk.copy()
-	Pxx = np.zeros((2,2))
-	for k in range(ENKF.get_N()):
-		Pxx = Pxx + 1.0/(1.0+float(ENKF._N))*np.outer(ENKF.xk[:,k]-xf[0,:],ENKF.xk[:,k]-xf[0,:])
-	Pf[0,:] = Pxx.reshape((4,))
-	'''
+	# index of cluster membership
+	Idx = np.zeros((nSteps,250))
 
 	t1 = time.time()
 	fig = []
@@ -75,7 +81,11 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 			print("Propagate to t = %f" % (ts))
 			# propagate filter
 			ENKF.propagateOde(dt,dtout=0.1)
+		# log
+		Xp[k,:,:] = ENKF.xk.copy()
+		Idx[k,:] = ENKF.meansIdx.copy().astype(int)
 
+		'''
 		## debug plotting
 		fig.append(plt.figure())
 		ax = fig[k].add_subplot(1,1,1,title='t = %f' % (ts))
@@ -87,7 +97,6 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 			Pxx = np.zeros((2,2))
 			for kj in idx:
 				Pxx = Pxx + 1.0/(float(len(idx))-1.0)*np.outer(ENKF.xk[:,kj]-mux,ENKF.xk[:,kj]-mux)
-			
 			if jk == 0:
 				ax.plot(ENKF.xk[0,idx],ENKF.xk[1,idx],'bd')
 			else:
@@ -107,7 +116,8 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 				ax.plot(ellipsP[:,0],ellipsP[:,1],'b--')
 			else:
 				ax.plot(ellipsP[:,0],ellipsP[:,1],'r--')
-		fig[k].show()
+		#fig[k].show()
+		'''
 
 		if k > 0:
 			# update
@@ -121,21 +131,17 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 		Pf[k,:] = Pxx.reshape((4,))
 		Nf[k] = ENKF.get_N()
 
+		# add the aposteriori state to the plot in black
+
 	t2 = time.time()
 	print("Elapsed time: %f sec" % (t2-t1))
 
-	raw_input("return to continue")
-	for k in range(0,nSteps):
-		plt.close(fig[k])
-
-	if flag_adapt:
-		return(xf,Pf,Nf)
-	else:
-		return(Xf,Pf,Nf)
+	return(Xf,Pf,Idx,Xp)
 
 def main():
 	global nameBit
-	names = ['sims_01_bifurcation']
+	names = ['sims_01_bifurcation_noninformative']
+	flag_informative = False
 	flag_adapt = False
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
@@ -167,17 +173,67 @@ def main():
 			xk = XK[:,(2*counter):(2*counter+2)]
 			yk = YK[:,counter]
 
-			enkf_test(dt,tf,mu0,P0,yk,Qk,Rk,flag_adapt)
+			(Xf,Pf,Idx,Xp) = enkf_test(dt,tf,mu0,P0,yk,Qk,Rk,flag_adapt,flag_informative)
+
+			if Ns == 1:
+				fig = []
+				for k in range(nSteps):
+					fig.append(plt.figure())
+					ax = fig[k].add_subplot(1,1,1,title="t = %f" % (tsim[k]))
+					#compute the number of active means
+					meansIdx = Idx[k,:].copy()
+					activeMeans = 1
+					if np.any(meansIdx > 0):
+						activeMeans = 2
+					for jk in range(activeMeans):
+						idx = np.nonzero(meansIdx==jk)
+						idx = idx[0]
+						mux = np.mean(Xf[k,:,idx],axis=0)
+						Pxx = np.zeros((2,2))
+						for kj in idx:
+							Pxx = Pxx + 1.0/(float(len(idx))-1.0)*np.outer(Xf[k,:,kj]-mux,Xf[k,:,kj]-mux)
+						mux0 = np.mean(Xp[k,:,idx],axis=0)
+						Pxx0 = np.zeros((2,2))
+						for kj in idx:
+							Pxx0 = Pxx0 + 1.0/(float(len(idx))-1.0)*np.outer(Xp[k,:,kj]-mux0,Xp[k,:,kj]-mux0)
+						if jk == 0:
+							ax.plot(Xf[k,0,idx],Xf[k,1,idx],'mo')
+							ax.plot(Xp[k,0,idx],Xp[k,1,idx],'bd')
+						else:
+							ax.plot(Xf[k,0,idx],Xf[k,1,idx],'co')
+							ax.plot(Xp[k,0,idx],Xp[k,1,idx],'rd')
+						# plot the single-mean covariance ellipsoid
+						# draw points on a unit circle
+						thetap = np.linspace(0,2*math.pi,20)
+						circlP = np.zeros((20,2))
+						circlP[:,0] = 3.0*np.cos(thetap)
+						circlP[:,1] = 3.0*np.sin(thetap)
+						# transform the points circlP through P^(1/2)*circlP + mu
+						Phalf = np.real(scipy.linalg.sqrtm(Pxx))
+						ellipsP = np.zeros(circlP.shape)
+						for kj in range(circlP.shape[0]):
+							ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mux
+						if jk == 0:
+							ax.plot(ellipsP[:,0],ellipsP[:,1],'m--')
+						else:
+							ax.plot(ellipsP[:,0],ellipsP[:,1],'c--')
+						# transform the points circlP through P^(1/2)*circlP + mu
+						Phalf = np.real(scipy.linalg.sqrtm(Pxx0))
+						ellipsP = np.zeros(circlP.shape)
+						for kj in range(circlP.shape[0]):
+							ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mux
+						if jk == 0:
+							ax.plot(ellipsP[:,0],ellipsP[:,1],'b--')
+						else:
+							ax.plot(ellipsP[:,0],ellipsP[:,1],'r--')
+						# plot the truth state
+						ax.plot(xk[k,0],xk[k,1],'ks')
+					fig[k].show()
+				raw_input("Return to quit")
+				for k in range(nSteps):
+					plt.close(fig[k])
+
 			'''
-			(Xf,Pf,Nf) = enkf_test(dt,tf,mu0,P0,yk,Qk,Rk,flag_adapt)
-
-			if flag_adapt:
-				xf = Xf
-			else:
-				xf = np.mean(Xf,axis=2)
-
-			# store the number of particles, relevant if adaptive
-			Nf_history[:,counter] = Nf.copy()
 			# compute the unit variance transformation of the error
 			e1 = np.zeros((nSteps,2))
 			chi2 = np.zeros(nSteps)

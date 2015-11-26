@@ -72,7 +72,8 @@ def clusterConvergence2Modes(xk,activeMeans):
 	AIC = 2.0*2 - 2.0*math.log(np.max(L))
 	# smaller AIC value is better
 	print("AIC1 = %f,AIC2 = %f, L1 = %f, L2 = %f" % (AIC,AIC2,np.max(L),np.max(L2)))
-	if AIC < AIC2:
+	#if AIC < AIC2:
+	if np.max(L) > np.max(L2):
 		(idxk,mui) = kmeans.kmeans(xk.transpose(),1)
 	return(idxk,mui)
 
@@ -349,14 +350,54 @@ class enkf():
 			for j in range(self._n):
 				self.xk[j,k] = self.xk[j,k] + innov[j]
 
+## Ensemble Kalman filter derived class for the case where the measurement function is nonlinear. Uses the Unscented form of the update equations.
+class nonlinear_enkf(enkf):
+	def __init__(self,n=1,m=1,propagateFunction=None,measurementFunction=None,Qk=None,Rk=None,Ns=None):
+		self.measurementFunction = measurementFunction
+		enkf.__init__(self,n,m,propagateFunction,None,Qk,Rk,Ns)
+	## update update the system in response to a measurement. Use the nonlinear measurement function in the innovation computation
+	#
+	# @param[in] ymeas measurement at current time
+	def update(self,ymeas):
+		# generate sample measurement noises from the covariance _Rk
+		# dy is N x h where h is the number of outputs
+		dy = np.random.multivariate_normal( np.zeros(self._Rk.shape[0]) ,self._Rk,size=(self._N,)).transpose()
+		# compute the predicted mean
+		xhatm = np.mean(self.xk,axis=1)
+		# compute the state covariance Pxx
+		coef = 1.0/(float(self._N)-1.0)
+		Pxx = np.zeros((self._n,self._n))
+		for k in range(self._N):
+			Pxx = Pxx + coef*np.outer(self.xk[:,k]-xhatm,self.xk[:,k]-xhatm)
+		yexp = np.zeros((self._Rk.shape[0],self._N))
+		for k in range(self._N):
+			# compute the measurement expectation
+			yexp[:,k] = self.measurementFunction(self.xk[:,k],self.t,self.u,dy[:,k])
+		# compute the mean expectation
+		yhat = np.mean(yexp,axis=1)
+		# compute the output covariance and cross-covariance
+		Pyy = np.zeros(self._Rk.shape)
+		Pxy = np.zeros((self._n,self._Rk.shape[0]))
+		coef = 1.0/(float(self._N)-1.0)
+		for k in range(self._N):
+			Pyy = Pyy + coef*np.outer(yexp[:,k]-yhat,yexp[:,k]-yhat)
+			Pxy = Pxy + coef*np.outer(self.xk[:,k]-xhatm,yexp[:,k]-yhat)
+		# Compute the Kalman gain
+		Kk = np.dot(Pxy,np.linalg.inv(Pyy))
+		# update each state
+		for k in range(self._N):
+			innov = Kk*(ymeas - yexp[:,k])
+			for j in range(self._n):
+				self.xk[j,k] = self.xk[j,k] + innov[j]
+
 ## clustering_enkf
 #
 # version of the ensemble Kalman filter that's modified for spatially clustered data and non-informative measurements
 # Primary change: basic algorithms for handling covariance are modified to run kmeans clustering, and return the mean and covariance of multiple clusters if applicable
 #
 # @param[in] maxMeans maximum number of clusters into which to attempt partitioning data
-class clustering_enkf(enkf):
-	def __init__(self,n=1,m=1,propagateFunction=None,Hk=None,Qk=None,Rk=None,Ns=None,maxMeans = 3):
+class clustering_enkf(nonlinear_enkf):
+	def __init__(self,n=1,m=1,propagateFunction=None,measurementFunction=None,Qk=None,Rk=None,Ns=None,maxMeans = 3):
 		## number of clusters in use currently. Always initialize to 1 currently b/c of how the init() function works
 		self.activeMeans = 1
 		## max number of clusters allowed
@@ -368,12 +409,12 @@ class clustering_enkf(enkf):
 		## array for the system covariances
 		self.covariances = np.zeros((n,n,maxMeans))
 		# run normal initialization
-		enkf.__init__(self,n,m,propagateFunction,Hk,Qk,Rk,Ns)
+		nonlinear_enkf.__init__(self,n,m,propagateFunction,measurementFunction,Qk,Rk,Ns)
 	## initialization function for clustering EnKF
 	#
 	# initialize the means and covariances members after running standard init function
 	def init(self,mux,Pxx,ts=0.0):
-		enkf.init(self,mux,Pxx,ts)
+		nonlinear_enkf.init(self,mux,Pxx,ts)
 		# initialize means
 		for k in range(self.activeMeans):
 			# compute the mean of all members where meansIdx == k
@@ -389,39 +430,71 @@ class clustering_enkf(enkf):
 	## propagate forward the system by dt, then perform clustering on the updated states
 	def propagateOde(self,dt,dtout = None):
 		# use standard propagation
-		enkf.propagateOde(self,dt,dtout)
+		nonlinear_enkf.propagateOde(self,dt,dtout)
 		# call the convergenceCheck function
 		(idxk,mui) = clusterConvergence2Modes(self.xk,self.activeMeans)
 		print(mui)
 		self.meansIdx = idxk
 		self.activeMeans = mui.shape[0]
 		self.means[:,0:self.activeMeans] = mui.transpose().copy()
-		# TODO update covariances
+		# update covariances
+		for k in range(self.activeMeans):
+			# compute the mean of all members where meansIdx == k
+			idx = np.nonzero(self.meansIdx==k)
+			idx = idx[0]
+			# compute the covariance
+			Pkk = np.zeros((self._n,self._n))
+			coef = 1.0/(float(len(idx))-1.0)
+			for j in idx:
+				Pkk = Pkk + coef*np.outer(self.xk[:,j]-self.means[:,k],self.xk[:,j]-self.means[:,k])
+			self.covariances[:,:,k] = Pkk.copy()
 	## update update the system in response to a measurement
 	#
 	# @param[in] ymeas measurement at current time
-	'''
 	def update(self,ymeas):
 		# generate sample measurement noises from the covariance _Rk
 		# dy is N x h where h is the number of outputs
 		dy = np.random.multivariate_normal( np.zeros(self._Rk.shape[0]) ,self._Rk,size=(self._N,)).transpose()
-		# compute the predicted mean
-		xhatm = np.mean(self.xk,axis=1)
-		# compute the state covariance Pxx
-		coef = 1.0/(float(self._N)-1.0)
-		Pxx = np.zeros((self._n,self._n))
-		for k in range(self._N):
-			Pxx = Pxx + coef*np.outer(self.xk[:,k]-xhatm,self.xk[:,k]-xhatm)
-		# inverse term for the Kalman gian
-		invTerm = np.linalg.inv(self._Rk + np.dot(self._Hk,np.dot(Pxx,self._Hk.transpose())))
-		# Compute the Kalman gain
-		Kk = np.dot(Pxx,np.dot(self._Hk.transpose(),invTerm))
-		# update each state
-		for k in range(self._N):
-			innov = Kk*(ymeas + dy[:,k] - np.dot(self._Hk,self.xk[:,k]))
-			for j in range(self._n):
-				self.xk[j,k] = self.xk[j,k] + innov[j]
-	'''
+		yexp = np.zeros((self._Rk.shape[0],self._N))
+		# individually update each cluster, based on the measurement
+		for jk in range(self.activeMeans):
+			idx = np.nonzero(self.meansIdx==jk)
+			idx = idx[0]
+			L = len(idx)
+			# compute the predicted mean
+			xhatm = np.mean(self.xk[:,idx],axis=1)
+			# compute the state covariance Pxx
+			coef = 1.0/(float(L)-1.0)
+			Pxx = np.zeros((self._n,self._n))
+			for k in idx:
+				Pxx = Pxx + coef*np.outer(self.xk[:,k]-xhatm,self.xk[:,k]-xhatm)
+			for k in idx:
+				# compute the measurement expectation
+				yexp[:,k] = self.measurementFunction(self.xk[:,k],self.t,self.u,dy[:,k])
+			# compute the mean expectation
+			yhat = np.mean(yexp[:,idx],axis=1)
+			# compute the output covariance and cross-covariance
+			Pyy = np.zeros(self._Rk.shape)
+			Pxy = np.zeros((self._n,self._Rk.shape[0]))
+			coef = 1.0/(float(L)-1.0)
+			for k in idx:
+				Pyy = Pyy + coef*np.outer(yexp[:,k]-yhat,yexp[:,k]-yhat)
+				Pxy = Pxy + coef*np.outer(self.xk[:,k]-xhatm,yexp[:,k]-yhat)
+			# Compute the Kalman gain
+			Kk = np.dot(Pxy,np.linalg.inv(Pyy))
+			# update each state
+			for k in idx:
+				innov = Kk*(ymeas - yexp[:,k])
+				for j in range(self._n):
+					self.xk[j,k] = self.xk[j,k] + innov[j]
+			# store the means
+			self.means[:,jk] = np.mean(self.xk[:,idx],axis=1)
+			# compute the covariance
+			Pkk = np.zeros((self._n,self._n))
+			coef = 1.0/(float(L)-1.0)
+			for j in idx:
+				Pkk = Pkk + coef*np.outer(self.xk[:,j]-self.means[:,jk],self.xk[:,j]-self.means[:,jk])
+			self.covariances[:,:,jk] = Pkk.copy()
 
 ## adaptive_enkf
 #

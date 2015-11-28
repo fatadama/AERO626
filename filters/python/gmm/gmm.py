@@ -2,6 +2,10 @@
 Gaussian mixture model class
 """
 
+import numpy as np
+import math
+import scipy.stats as stats
+
 ## Returns the value of the Gaussian multivariate distribution at point x with mean mu and covariance P
 #
 # @param[in] x point at which to evaluate PDF
@@ -10,7 +14,10 @@ Gaussian mixture model class
 # @param[out] p the pdf evaluated at x
 def gaussianNormalPdf(x,mu,P):
 	Pinv = np.linalg.inv(P)
-	p = math.exp(-0.5*np.dot(x-mu,np.dot(Pinv,x-mu)))/math.sqrt(math.pow(2.0*math.pi,x.shape[0])*np.linalg.det(P))
+	d = x.shape[0]
+	dp = np.dot(x-mu,np.dot(Pinv,x-mu))
+	dt = 1.0/math.sqrt(math.pow(2.0*math.pi,float(d))*np.linalg.det(P))
+	p = math.exp(-0.5*dp)*dt
 	return p
 
 class gmm():
@@ -45,11 +52,29 @@ class gmm():
 		## measurement noise covariance
 		self.Rk = Rk.copy()
 		## Ns-length vector of scalar weights that sum to zero
-		self.alphai = no.zeros(Ns)
+		self.alphai = np.zeros(Ns)
 		## time (scalar)
 		self.ts = 0.0
 		## control vector: current unknown size, initialize to zero
 		self.u = 0.0
+	## init_monte
+	#
+	# initialize the Gaussian terms based on an initial (Gaussian) proposed distribution
+	def init_monte(self,mu,P0):
+		# draw random points for the initial means
+		self.aki = np.random.multivariate_normal(mu,P0,size=(self.aki.shape[1],)).transpose()
+		# uniform initial weights
+		self.alphai = 1.0/float(self.aki.shape[1])*np.ones(self.aki.shape[1])
+		# initial covariances are all equal
+		Pkk0 = P0.copy()
+		for k in range(self.aki.shape[1]):
+			Pkk0 = Pkk0 - self.alphai[k]*np.outer(self.aki[:,k]-mu,self.aki[:,k]-mu)
+		# force the covariane to be positive definite
+		Pkk0 = np.absolute(Pkk0)
+		# force the covariance to be diagonal
+		Pkk0 = np.diag(np.diag(Pkk0))
+		for k in range(self.aki.shape[1]):
+			self.Pki[:,:,k] = Pkk0.copy()
 	## propagation function for the case where the order of the process noise and state uncertainty is comparable
 	#
 	# @param[in] dt time increment; first-order Euler integration used
@@ -81,7 +106,7 @@ class gmm():
 			# evaluate Bkj
 			Hk = self.measurementJacobian(self.aki[:,j],self.ts)
 			Pkj = np.dot(Hk,np.dot(self.Pki[:,:,j],Hk.transpose())) + self.Rk
-			Bkj[j] = gaussianNormalPdf(ymeas-self.measurementFunction(self.axi[:,j],self.ts),0.0,Pkj)
+			Bkj[j] = gaussianNormalPdf(ymeas,self.measurementFunction(self.aki[:,j],self.ts),Pkj)
 			normalizingFactor = normalizingFactor + self.alphai[j]*Bkj[j]
 		normalizingFactor = 1.0/normalizingFactor
 		# now update everything else
@@ -99,3 +124,17 @@ class gmm():
 			self.Pki[:,:,j] = self.Pki[:,:,j] - np.dot(Ki,np.dot(Hk,self.Pki[:,:,j]))
 			# update the weights
 			self.alphai[j] = self.alphai[j]*Bkj[j]*normalizingFactor
+	## get_pdf
+	#
+	# Return the value of the mixture PDF evaluated at each of the means
+	# @ param[out] XK n x Ns numpy array of the current means in the mixture
+	# @ param[out] pk Ns-length vector of the PDF value at each entry in XK
+	def get_pdf(self):
+		XK = self.aki.copy()
+		pk = np.zeros(self.aki.shape[1])
+		for k in range(self.aki.shape[1]):
+			xk = XK[:,k].copy()
+			for j in range(self.aki.shape[1]):
+				pk[k] = pk[k] + self.alphai[j]*gaussianNormalPdf(xk,self.aki[:,j],self.Pki[:,:,j])
+		return(XK,pk)
+

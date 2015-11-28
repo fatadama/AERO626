@@ -19,7 +19,7 @@ import scipy.stats as stats
 # @param[out] p the pdf evaluated at x
 def gaussianNormalPdf(x,mu,P):
 	Pinv = np.linalg.inv(P)
-	p = math.exp(-0.5*np.dot(x-mu,np.dot(Pinv,x-mu)))/math.sqrt(2*math.pi*np.linalg.det(P))
+	p = math.exp(-0.5*np.dot(x-mu,np.dot(Pinv,x-mu)))/math.sqrt(math.pow(2.0*math.pi,x.shape[0])*np.linalg.det(P))
 	return p
 
 # clusterConvergence2Modes
@@ -76,34 +76,6 @@ def clusterConvergence2Modes(xk,activeMeans):
 	if np.max(L) > np.max(L2):
 		(idxk,mui) = kmeans.kmeans(xk.transpose(),1)
 	return(idxk,mui)
-
-	'''
-	for k in range(testMeans):
-		# compute the mean of all members where meansIdx == k
-		idx = np.nonzero(idxk==k)
-		idx = idx[0]
-		meansk[:,k] = mui[k,:].transpose()
-		# compute the covariance
-		Pkk = np.zeros((p,p))
-		coef = 1.0/(float(N)-1.0)
-		for j in idx:
-			Pkk = Pkk + coef*np.outer(xk[:,j]-meansk[:,k],xk[:,j]-meansk[:,k])
-		Pkkk[:,:,k] = Pkk.copy()
-		# compute number of cluster members outside the 3sigma bounds
-		Phalf = np.real(scipy.linalg.sqrtm( np.linalg.inv(Pkk) ))
-		badPts = 0.0;
-		for j in idx:
-			yk = np.dot(Phalf,xk[:,j]-meansk[:,k])
-			if np.linalg.norm(yk) > 3.0:
-				badPts = badPts + 1
-		print("fraction %f outliers in cluster %d" % (float(badPts)/len(idx),k) )
-		if float(badPts)/len(idx) > 0.1:
-			# return single-cluster case
-			(idxk,mui) = kmeans.kmeans(xk.transpose(),1)
-			return(idxk,mui)
-	# if we got here, both outlier fractions were less than 10%
-	return(idxk,mui)
-	'''
 
 # @param[in] xk [p x N] numpy array of N points in p dimensions
 # @param[in] activeMeans current number of means in the data set

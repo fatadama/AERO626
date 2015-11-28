@@ -2,13 +2,17 @@ Fitlers developed in python
 
 Folder descriptions:
 ekf - Extended Kalman Filter class definition
+gmm - Gaussian mixture models
 lib - utility functions used by many classes (mainly resampling for particle filters)
 problems - contains implementations of specific problems
 sis_particle - sequential importance sampling particle filter. Impractical due to sample impoverishment
 ukf - Unscented Kalman Filter class definition
 
-Filters roughly in order of complexity:
+Filters roughly in order of complexity (least to most):
 - EKF
 - UKF
+- GMM
 - SIS (will not work well in practical problems)
 - SIR
+- ASIR
+- EnKF

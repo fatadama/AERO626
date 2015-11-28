@@ -1,0 +1,98 @@
+\documentclass[]{article}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{url}
+
+%opening
+\title{AERO 626 Challenge Problem}
+\author{Tim Woodbury}
+
+\begin{document}
+
+%\pagenumbering{gobble} % remove page numbers?
+
+\maketitle
+
+\section{Governing equation and bifurcation time}
+
+\begin{align}
+\ddot{x} = x - \epsilon x^3 + a_0 \cos{\omega_t t} + w(t) \label{eq:eqom} \\
+w(t) \sim N(0,q)
+\end{align}
+
+\subsection{System parameters and measurement model}
+
+The system measurement model is given as follows:
+
+\begin{equation}
+y_k = x_k + n_k, n_k \sim N(0,r)
+\end{equation}
+
+System measurements occur at discrete times $t_k = kT$. The total set of parameters that govern system behavior are defined below:
+
+\begin{itemize}
+\item $\epsilon = 0.01$
+\item $a_0 = 2.0$
+\item $\omega_t = 1.25$
+\item $q = 1.0$
+\item $r = 1.0$
+\item $T = 0.1$
+\end{itemize}
+
+In addition, for numerical convenience in simulating the system dynamics, the process noise $w(t)$ is discretized at a fixed rate and held piecewise constant between samples. This effectively transforms as follows:
+
+\begin{equation}
+w(t) \rightarrow w_k \sim N(0,qT_s), t_k \leq t \leq t_{k+1}
+\end{equation}
+
+The dynamic uncertainty discretization time is taken as $T_s = 0.01$.
+
+One feature of interest for the system is its equilibria: the unforced system has roots at $x = 0, \pm \sqrt{\frac{1}{\epsilon}}$. The roots at $\pm \sqrt{\frac{1}{\epsilon}}$ are attractive; the root at the origin is repulsive. The net effect is that, when propagated forward for a long enough time, a probability density initially centered at the origin will bifurcate into two distributions, roughly centered around the attractive equilibria. It is of interest to determine the bifurcation time, in examining the effectiveness of various filters.
+
+Bifurcation time is analyzed with no forcing ($a_0 = 0$) by performing simulating a number of points from a normal distribution about the origin, then propagating forward in time. A test for multimodality is performed using smoothed kernel density estimates (KDEs). The procedure is outlined briefly in the following subsection.
+
+\subsection{Test for multimodality}
+
+The test for multimodality is Silverman's\cite{silverman}; for implementation, reference is also made to \cite{adereth}. The KDE is a method of nonparametric estimation of a density function. The KDE for a particular kernel $K(.)$ is defined for samples $\chi = \{ X_1,X_2,...X_n \}$ as follows:
+
+\begin{equation}
+\hat{f}(x;h) = \frac{1}{nh} \sum_{i=1}^{n} K(\frac{x-X_i}{h})
+\label{eq:kde_def}
+\end{equation}
+
+In Eq. \ref{eq:kde_def}, $h$ is a smoothing parameter. The kernel function in general may take different forms, but the Silverman test uses a univariate normal distribution. For a given data set $\chi$, the number of modes in the data (determined by the number of local extrema) is monotonically decreasing with the value of the smoothing parameter, according to Silverman\cite{silverman}. So, a simple binary search can be used to determine the critical smoothing parameter $h_{crit}$ at which the KDE has a particular number of modes. The objective of the test is to if the distribution of the position and velocity states at a fixed time is unimodal; therefore, the smoothing parameter for which the KDE has only one extrema is sought.
+
+One additional procedure is used in the test; smoothed bootstrap sampling. The test works by evaluating the significance of the null hypothesis that the underlying distribution is unimodal. If the significance is too small, the null hypothesis is rejected, and the distribution is assumed to be multimodal. Smoothed bootstrap sampling is used to evaluate the significance level. Bootstrap samples $X_i^*$ are drawn from the original data set $\chi = \{ X_1,X_2,...X_n \}$ as follows:
+
+\begin{equation}
+X_i^* = \frac{X_{j(i)} + h\epsilon_i}{\sqrt{1+h^2/\sigma^2}}, i \in [1,\dots,n]
+\label{eq:smoothedBootstrap}
+\end{equation}
+
+In Eq. \ref{eq:smoothedBootstrap}, the sample $X_{j(i)}$ is selected uniformly with replacement. $\sigma$ is the sample standard deviation of the data. $\epsilon_i$ is a normally distributed random variable with uniform variance. The smoothed bootstrap samples are used to evaluate the null hypothesis that the distribution is unimodal with a critical KDE parameter $h_{crit}$; $N_b$ sets are drawn using smoothed bootstrap sampling, and the number of maxima of the resulting KDE with $h_{crit}$ are tabulated. The fraction of sets with only one maximum is taken to be the significance level of the null hypothesis.
+
+The test procedure is summarized as follows:
+
+\begin{enumerate}
+\item Simulate $N_p$ Monte Carlo simulations for a fixed time
+\item For each time $t^*$ in the simulation outputs:
+\begin{enumerate}
+	\item Collect the $N_p$ state values at $t = t^*$
+	\item Compute the critical smoothing parameter $h_{crit}$ for which the KDE is unimodal
+	\item Evaluate the probability that the distribution has one mode
+	\begin{enumerate}
+		\item Perform smoothed bootstrap sampling from the critical KDE $N_b$ times
+		\item For each of the $N_b$ samples:
+		\begin{enumerate}
+			\item Evaluate the KDE with the critical smoothing parameter for the current sample. Record the number of modes.
+		\end{enumerate}
+		\item The fraction of unimodal KDEs is taken as the P-value for the test.	
+	\end{enumerate}
+\end{enumerate}
+\end{enumerate}
+
+\bibliographystyle{plain}
+\bibliography{ref}
+
+\end{document}

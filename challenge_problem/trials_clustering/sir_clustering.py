@@ -14,10 +14,10 @@ sys.path.append('../')
 import cp_dynamics
 
 sys.path.append('../../filters/python/sis_particle')
-#import sis
 sys.path.append('../../filters/python/sir_particle')
 sys.path.append('../../filters/python/lib')
 import sir
+import kmeans
 
 sys.path.append('../sim_data')
 import data_loader
@@ -112,6 +112,8 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100,informative=True):
 	Xp = np.zeros((nSteps,2,Nsu))
 	# the weights
 	weights = np.zeros((nSteps,SIR.Ns))
+	# weights after resampling
+	weightss = np.zeros((nSteps,SIR.Ns))
 
 	weights[0,:] = SIR.WI.copy()
 	Xp[0,:,:] = SIR.XK.copy()
@@ -132,10 +134,11 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100,informative=True):
 		SIR.sample()
 		## store resampled points
 		Xs[k,:,:] = SIR.XK.copy()
+		weightss[k,:] = SIR.WI.copy()
 	t2 = time.time()
 	print("Elapsed time: %f sec" % (t2-t1))
 
-	# compute the mean and covariance over time
+	# compute the mean and covariance over time - this is the propagated state
 	mux = np.zeros((nSteps,2))
 	Pxx = np.zeros((nSteps,4))
 	for k in range(nSteps):
@@ -146,15 +149,20 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100,informative=True):
 			iv = np.array([ Xp[k,0,j]-mux[k,0],Xp[k,1,j]-mux[k,1] ])
 			Pxk = Pxk + weights[k,j]*np.outer(iv,iv)
 			Pxx[k,:] = Pxk.reshape((4,))
+	# compute the aposteriori mean
+	muxs = np.zeros((nSteps,2))
+	for k in range(nSteps):
+		muxs[k,0] = np.sum( np.multiply(Xs[k,0,:],weightss[k,:]) )
+		muxs[k,1] = np.sum( np.multiply(Xs[k,1,:],weightss[k,:]) )
 
-	return(mux,Pxx,Xp,weights,Xs)
+	return(mux,Pxx,Xp,weights,Xs,muxs)
 
 def main():
 	# number of particles
-	Nsu = 250
+	Nsu = 400
 	global nameBit
-	names = ['sims_01_bifurcation']
-	flag_informative=True
+	names = ['sims_01_bifurcation_noninformative']
+	flag_informative=False
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
@@ -188,7 +196,7 @@ def main():
 			xk = XK[:,(2*counter):(2*counter+2)]
 			yk = YK[:,counter]
 
-			(xf,Pf,Xp,weights,Xs) = sir_test(dt,tf,mu0,P0,yk,Qk,Rk,Nsu,flag_informative)
+			(xf,Pf,Xp,weights,Xs,xs) = sir_test(dt,tf,mu0,P0,yk,Qk,Rk,Nsu,flag_informative)
 			# compute the unit variance transformation of the error
 			e1 = np.zeros((nSteps,2))
 			chi2 = np.zeros(nSteps)
@@ -206,6 +214,15 @@ def main():
 
 			print("MSE: %f,%f" % (mse[0],mse[1]))
 		if Ns < 2:
+			# loop over the particles after sampling and cluster using kmeans
+			# errors for the bifurcated case
+			e2case = np.zeros((2,nSteps,2))
+			for k in range(nSteps):
+				# cluster into two means
+				(idxk,mui) = kmeans.kmeans(Xs[k,:,:].transpose(),2)
+				# compute the errors for the two means
+				for jk in range(2):
+					e2case[jk,k,:] = mui[jk,:]-xk[k,:]
 			# plot of the discrete PDF and maximum likelihood estimate
 			# len(tsim) x Ns matrix of times
 			tMesh = np.kron(np.ones((Nsu,1)),tsim).transpose()
@@ -242,6 +259,9 @@ def main():
 					ax[k].plot(tsim,xk[:,k-2],'b-')
 				else:
 					ax[k].plot(tsim,xf[:,k-4]-xk[:,k-4],'b-')
+					# plot the mean after sampling
+					ax[k].plot(tsim,e2case[0,:,k-4],'y-')
+					ax[k].plot(tsim,e2case[1,:,k-4],'y-')
 					ax[k].plot(tsim,3.0*np.sqrt(Pf[:,k-4 + 2*(k-4)]),'r--')
 					ax[k].plot(tsim,-3.0*np.sqrt(Pf[:,k-4 + 2*(k-4)]),'r--')
 				ax[k].grid()
@@ -257,7 +277,7 @@ def main():
 					fig.append(plt.figure())
 					ax = fig[k].add_subplot(1,1,1,title="t = %f" % (tsim[k]))
 					ax.plot(Xp[k,0,:],Xp[k,1,:],'bd')#propagated values
-					ax.plot(Xs[k,0,:],Xs[k,1,:],'ms')#re-sampled values
+					ax.plot(Xs[k,0,:],Xs[k,1,:],'ys')#re-sampled values
 					#compute the number of active means
 					# plot the truth state
 					ax.plot(xk[k,0],xk[k,1],'ks')
@@ -362,8 +382,6 @@ def main():
 		FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
 		FID.close()
 		'''
-
-	raw_input("Return to quit")
 
 	print("Leaving sir_trials")
 

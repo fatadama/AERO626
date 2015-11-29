@@ -68,6 +68,25 @@ def eqom_det(x,t):
     dx[1] = x[0]-epsilon_eqom*math.pow(x[0],3.0)
     return dx
 
+## eqom_stoch_jac Jacobian of eqom_det at a given state and time
+#
+#   @param[in] t time
+#   @param[in] x state (position, velocity)
+#   @param[in] v process noise term; dummy here, only for consistent calling form
+def eqom_det_jac(x,t,v=None):
+    Fk = np.zeros((2,2))
+    Fk[0,1] = 1.0;
+    Fk[1,0] = 1.0-epsilon_eqom*3.0*x[0]*x[0]
+    return Fk
+
+## eqom_stoch_Gk process noise influence matrix of eqom_det at a given state and time
+#
+#   @param[in] t time
+#   @param[in] x state (position, velocity)
+#   @param[in] v process noise term; dummy here, only for consistent calling form
+def eqom_det_Gk(x,t,v=None):
+    return np.array([ [0.0],[1.0] ])
+
 ## eqom_det_f Deterministic equation of motion with cosine forcing and no white noise
 #
 #   @param[in] t time
@@ -169,3 +188,12 @@ class cp_simObject:
             self._t = tk[k]
             yk[k] = self.measureFunction()
         return(yk,xk,tk)
+
+## cp_simObjectNonInformative
+#
+# simulation object for propagating system with measurements of position-squared only
+# Other functionality should all be inherited from the original simObject
+class cp_simObjectNonInformative(cp_simObject):
+    ## Returns the position squared measurement with sensor noise as a 1-length numpy vector
+    def measureFunction(self):
+        return np.array([ self._xk[0]*self._xk[0] + np.random.normal(scale=r_w) ])

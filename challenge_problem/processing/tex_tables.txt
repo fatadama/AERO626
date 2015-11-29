@@ -1,0 +1,320 @@
+
+
+%************************************************
+% Performance table for filter ekf with namebit 0
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for EKF with no forcing}
+\label{fig:ekf_case_0}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ekf with namebit 1
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.034810 & 0.078452 & 0.014985 & 0.030969 \\
+\hline
+0.100000 & 0.463739 & 0.934899 & 0.000000 & 0.178218 \\
+\hline
+1.000000 & 0.812532 & 15.877884 & 0.181818 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for EKF with Gaussian forcing term}
+\label{fig:ekf_case_1}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ekf with namebit 2
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.045197 & 0.426368 & 0.144855 & 0.009990 \\
+\hline
+0.100000 & 0.303286 & 1.497036 & 0.059406 & 0.039604 \\
+\hline
+1.000000 & 0.963552 & 19.574001 & 0.000000 & 0.090909 \\
+\end{tabular}
+\caption{Performance metrics for EKF with cosine forcing term}
+\label{fig:ekf_case_2}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ekf with namebit 3
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.055496 & 0.544413 & 0.045954 & 0.058941 \\
+\hline
+0.100000 & 0.277793 & 1.132176 & 0.089109 & 0.000000 \\
+\hline
+1.000000 & 0.993195 & 2.701151 & 0.090909 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for EKF with Gaussian and cosine forcing terms}
+\label{fig:ekf_case_3}
+\end{table}
+
+
+%************************************************
+% Performance table for filter aenkf with namebit 0
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for AENKF with no forcing}
+\label{fig:aenkf_case_0}
+\end{table}
+
+
+%************************************************
+% Performance table for filter aenkf with namebit 1
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.023144 & 0.156405 & 0.431568 & 0.143856 \\
+\hline
+0.100000 & 0.148792 & 0.254733 & 0.287129 & 0.000000 \\
+\hline
+1.000000 & 0.672423 & 1.222604 & 0.363636 & 0.181818 \\
+\end{tabular}
+\caption{Performance metrics for AENKF with Gaussian forcing term}
+\label{fig:aenkf_case_1}
+\end{table}
+
+
+%************************************************
+% Performance table for filter aenkf with namebit 2
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.049852 & 0.476585 & 0.102897 & 0.117882 \\
+\hline
+0.100000 & 0.281146 & 1.170582 & 0.029703 & 0.099010 \\
+\hline
+1.000000 & 0.837019 & 2.450619 & 0.000000 & 0.272727 \\
+\end{tabular}
+\caption{Performance metrics for AENKF with cosine forcing term}
+\label{fig:aenkf_case_2}
+\end{table}
+
+
+%************************************************
+% Performance table for filter aenkf with namebit 3
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for AENKF with Gaussian and cosine forcing terms}
+\label{fig:aenkf_case_3}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ukf with namebit 0
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for UKF with no forcing}
+\label{fig:ukf_case_0}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ukf with namebit 1
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.015792 & 0.022185 & 0.188604 & 0.000000 \\
+\hline
+0.100000 & 0.095717 & 0.133324 & 0.461794 & 0.000000 \\
+\hline
+1.000000 & 0.781861 & 1.105239 & 0.096774 & 0.032258 \\
+\end{tabular}
+\caption{Performance metrics for UKF with Gaussian forcing term}
+\label{fig:ukf_case_1}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ukf with namebit 2
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.047098 & 0.443977 & 0.113886 & 0.073926 \\
+\hline
+0.100000 & 0.256470 & 1.073007 & 0.099010 & 0.009901 \\
+\hline
+1.000000 & 0.642572 & 2.055434 & 0.090909 & 0.090909 \\
+\end{tabular}
+\caption{Performance metrics for UKF with cosine forcing term}
+\label{fig:ukf_case_2}
+\end{table}
+
+
+%************************************************
+% Performance table for filter ukf with namebit 3
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for UKF with Gaussian and cosine forcing terms}
+\label{fig:ukf_case_3}
+\end{table}
+
+
+%************************************************
+% Performance table for filter sir with namebit 0
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for SIR (100 particles) with no forcing}
+\label{fig:sir_case_0}
+\end{table}
+
+
+%************************************************
+% Performance table for filter sir with namebit 1
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.557410 & 0.787892 & 0.000000 & 0.964036 \\
+\hline
+0.100000 & 0.163397 & 0.273783 & 0.158416 & 0.118812 \\
+\hline
+1.000000 & 0.503541 & 0.599032 & 0.181818 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for SIR (100 particles) with Gaussian forcing term}
+\label{fig:sir_case_1}
+\end{table}
+
+
+%************************************************
+% Performance table for filter sir with namebit 2
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.057646 & 0.767915 & 0.063936 & 0.006993 \\
+\hline
+0.100000 & 0.266573 & 1.023218 & 0.039604 & 0.000000 \\
+\hline
+1.000000 & 0.760620 & 2.573109 & 0.090909 & 0.181818 \\
+\end{tabular}
+\caption{Performance metrics for SIR (100 particles) with cosine forcing term}
+\label{fig:sir_case_2}
+\end{table}
+
+
+%************************************************
+% Performance table for filter sir with namebit 3
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for SIR (100 particles) with Gaussian and cosine forcing terms}
+\label{fig:sir_case_3}
+\end{table}
+
+
+%************************************************
+% Performance table for filter enkf with namebit 0
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for ENKF with no forcing}
+\label{fig:enkf_case_0}
+\end{table}
+
+
+%************************************************
+% Performance table for filter enkf with namebit 1
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.018197 & 0.099343 & 0.536464 & 0.000000 \\
+\hline
+0.100000 & 0.146521 & 0.259379 & 0.346535 & 0.000000 \\
+\hline
+1.000000 & 0.596805 & 1.071650 & 0.363636 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for ENKF with Gaussian forcing term}
+\label{fig:enkf_case_1}
+\end{table}
+
+
+%************************************************
+% Performance table for filter enkf with namebit 2
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for ENKF with cosine forcing term}
+\label{fig:enkf_case_2}
+\end{table}
+
+
+%************************************************
+% Performance table for filter enkf with namebit 3
+\begin{table}[tb!]
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+0.010000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+0.100000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\hline
+1.000000 & 0.000000 & 0.000000 & 0.000000 & 0.000000 \\
+\end{tabular}
+\caption{Performance metrics for ENKF with Gaussian and cosine forcing terms}
+\label{fig:enkf_case_3}
+\end{table}

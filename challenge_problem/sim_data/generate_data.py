@@ -31,7 +31,8 @@ Ns = 10
 tf = 10.0
 #tf = 30.0
 
-def generate_sim(function,Ts,tf,name=None):
+# @param[in] informative Set to False to use non-informative position measurements (y = position^2)
+def generate_sim(function,Ts,tf,name=None,informative=True):
 	nSteps = int(tf/Ts)+1
 	## matrix of initial conditions, size 2 x N
 	X0 = np.random.multivariate_normal(mux0,P0,size=(Ns,)).transpose()
@@ -44,7 +45,10 @@ def generate_sim(function,Ts,tf,name=None):
 
 	t1 = time.time()
 	for k in range(Ns):
-		sim = cp_dynamics.cp_simObject(function,X0[:,k],Ts)
+		if informative:
+			sim = cp_dynamics.cp_simObject(function,X0[:,k],Ts)
+		else:
+			sim = cp_dynamics.cp_simObjectNonInformative(function,X0[:,k],Ts)
 		# simulate
 		(YK[:,k],XK[:,(2*k):(2*k+2)],tk) = sim.simFull(Tf=tf)
 		t2 = time.time()
@@ -109,5 +113,12 @@ generate_sim(cp_dynamics.eqom_det_f,0.01,tf,name='sims_10_fast')
 generate_sim(cp_dynamics.eqom_det_f,0.1,tf,name='sims_10_medium')
 generate_sim(cp_dynamics.eqom_det_f,1.0,tf,name='sims_10_slow')
 '''
+generate_sim(cp_dynamics.eqom,0.01,tf,name='sims_11_fast')
+generate_sim(cp_dynamics.eqom,0.1,tf,name='sims_11_medium')
+generate_sim(cp_dynamics.eqom,1.0,tf,name='sims_11_slow')
+'''
 # very long period observations - bifurcation case
-generate_sim(cp_dynamics.eqom_stoch,10.0,60.0,name='sims_01_bifurcation')
+generate_sim(cp_dynamics.eqom_stoch,5.0,60.0,name='sims_01_bifurcation')
+# simulation bifurcation case with uninformative measurements
+generate_sim(cp_dynamics.eqom_stoch,5.0,60.0,name='sims_01_bifurcation_noninformative',informative=False)
+'''

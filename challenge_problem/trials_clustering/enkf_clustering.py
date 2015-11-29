@@ -85,40 +85,6 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False,flag_informative=True):
 		Xp[k,:,:] = ENKF.xk.copy()
 		Idx[k,:] = ENKF.meansIdx.copy().astype(int)
 
-		'''
-		## debug plotting
-		fig.append(plt.figure())
-		ax = fig[k].add_subplot(1,1,1,title='t = %f' % (ts))
-		for jk in range(ENKF.activeMeans):
-			#mux = np.mean(ENKF.xk,axis=1)
-			mux = ENKF.means[:,jk]
-			idx = np.nonzero(ENKF.meansIdx==jk)
-			idx = idx[0]
-			Pxx = np.zeros((2,2))
-			for kj in idx:
-				Pxx = Pxx + 1.0/(float(len(idx))-1.0)*np.outer(ENKF.xk[:,kj]-mux,ENKF.xk[:,kj]-mux)
-			if jk == 0:
-				ax.plot(ENKF.xk[0,idx],ENKF.xk[1,idx],'bd')
-			else:
-				ax.plot(ENKF.xk[0,idx],ENKF.xk[1,idx],'rs')
-			# plot the single-mean covariance ellipsoid
-			# draw points on a unit circle
-			thetap = np.linspace(0,2*math.pi,20)
-			circlP = np.zeros((20,2))
-			circlP[:,0] = 3.0*np.cos(thetap)
-			circlP[:,1] = 3.0*np.sin(thetap)
-			# transform the points circlP through P^(1/2)*circlP + mu
-			Phalf = np.real(scipy.linalg.sqrtm(Pxx))
-			ellipsP = np.zeros(circlP.shape)
-			for kj in range(circlP.shape[0]):
-				ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mux
-			if jk == 0:
-				ax.plot(ellipsP[:,0],ellipsP[:,1],'b--')
-			else:
-				ax.plot(ellipsP[:,0],ellipsP[:,1],'r--')
-		#fig[k].show()
-		'''
-
 		if k > 0:
 			# update
 			ENKF.update(ym)

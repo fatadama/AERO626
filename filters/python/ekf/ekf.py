@@ -1,6 +1,6 @@
 '''
-offboard_filter.py
-accepts vicon, gyro, accel, baro? and propagates in between
+@package ekf.py
+contains Extended kalman filter class definition
 '''
 
 # data format: [timestamp, accx, accy, accz]
@@ -58,6 +58,16 @@ class ekf():
         self.Pk = Pk.copy()
         self.t = tInit
         self.initFlag = True
+    ## continuous-time propagation function, uses numpy's integrator for improved performance
+    def propagateOde(self,dt):
+        Pcol = np.reshape(self.Pk,(self.n*self.n,))
+        xaug = np.concatenate((self.xhat,Pcol))
+        y = sp.odeint(self.derivatives,xaug,np.array([self.t,self.t+dt]),args=(self.u,))
+        xaug = y[-1,:]
+        # store
+        self.xhat = xaug[0:self.n].copy()
+        self.Pk = xaug[self.n:].reshape((self.n,self.n))
+        self.t = self.t + dt
     def propagateRK4(self,dt):
         #sp.odeint(self.propagateFunction,self.xhat,np.array([self.t,self.t+dt]),args=([self.u],) )
         Pcol = np.reshape(self.Pk,(self.n*self.n,))

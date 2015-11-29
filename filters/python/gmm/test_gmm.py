@@ -105,6 +105,8 @@ def main(argin='./',adaptFlag = False):
         # update EKF
         GMM.update(ymeas)
         print("%f,%f" % (tsim,ymeas[0]))
+        # resample?
+        GMM.resample()
     t2 = time.time()
     tplot = np.arange(0.0,tfin,dt)
 

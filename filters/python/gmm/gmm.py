@@ -124,6 +124,15 @@ class gmm():
 			self.Pki[:,:,j] = self.Pki[:,:,j] - np.dot(Ki,np.dot(Hk,self.Pki[:,:,j]))
 			# update the weights
 			self.alphai[j] = self.alphai[j]*Bkj[j]*normalizingFactor
+	##eval_pdf_x
+	#
+	# evaluate the PDF using the current Gaussian mixture model at a specified point x
+	# @ param[in] xk [d-length] numpy vector at which to evaluate PDF
+	def eval_pdf_x(self,xk):
+		pk = 0.0
+		for j in range(self.aki.shape[1]):
+			pk = pk + self.alphai[j]*gaussianNormalPdf(xk,self.aki[:,j],self.Pki[:,:,j])
+		return pk
 	## get_pdf
 	#
 	# Return the value of the mixture PDF evaluated at each of the means
@@ -134,7 +143,48 @@ class gmm():
 		pk = np.zeros(self.aki.shape[1])
 		for k in range(self.aki.shape[1]):
 			xk = XK[:,k].copy()
+			pk[k] = self.eval_pdf_x(xk)
+			'''
 			for j in range(self.aki.shape[1]):
 				pk[k] = pk[k] + self.alphai[j]*gaussianNormalPdf(xk,self.aki[:,j],self.Pki[:,:,j])
+			'''
 		return(XK,pk)
-
+	## resample from the kth Gaussian with probability alphai[k], and set the new weights to equal
+	def resample(self):
+		Aki = np.zeros(self.aki.shape)
+		for k in range(self.aki.shape[1]):
+			u1 = np.random.uniform(0,1)
+			s = 0.0
+			ju = 0
+			for j in range(self.aki.shape[1]):
+				s = s + self.alphai[j]
+				ju = j
+				if s > u1:
+					break
+			Aki[:,k] = np.random.multivariate_normal(self.aki[:,ju],self.Pki[:,:,ju])
+		self.aki = Aki.copy()
+		# equalize the weights
+		self.alphai = 1.0/float(self.aki.shape[1])*np.ones(self.aki.shape[1])
+	# resample using Markov chain Monte Carlo according to a normal proposal distribution
+	def resample_mcmc(self):
+		(XK,pk) = self.get_pdf()
+		ix = np.argmax(pk)
+		x0 = XK[:,ix]
+		# eval the PDF at x0
+		fx0 = self.eval_pdf_x(x0)
+		for k in range(self.aki.shape[1]):
+			# sample the next point
+			xp = np.random.multivariate_normal(x0,np.identity(self.aki.shape[0]))
+			# evaluate pdf at xp
+			fxp = self.eval_pdf_x(xp)
+			if fxp > fx0:
+				x0 = xp.copy()
+				fx0 = fxp
+			else:
+				# draw uniform on 0,1
+				u1 = np.random.uniform(0,1)
+				# go to xp if u1 < fxp/fx0
+				if u1 < (fxp/fx0):
+					x0 = xp.copy()
+					fx0 = fxp
+			self.aki[:,k] = x0.copy()

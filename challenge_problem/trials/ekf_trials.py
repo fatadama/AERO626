@@ -19,13 +19,13 @@ sys.path.append('../sim_data')
 import data_loader
 
 def eqom_ekf(x,t,u):
-	return cp_dynamics.eqom_stoch(x,t)
+	return cp_dynamics.eqom_det(x,t)
 
 def eqom_jacobian_ekf(x,t,u):
-	return cp_dynamics.eqom_stoch_jac(x,t)
+	return cp_dynamics.eqom_det_jac(x,t)
 
 def eqom_gk_ekf(x,t,u):
-	return cp_dynamics.eqom_stoch_Gk(x,t)
+	return cp_dynamics.eqom_det_Gk(x,t)
 
 def measurement_ekf(x,t):
 	return np.array([ x[0] ])
@@ -60,7 +60,7 @@ def ekf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 		ym = np.array([YK[k]])
 		ts = ts + dt
 		# sync the EKF, with continuous-time integration
-		EKF.propagate(dt)
+		EKF.propagateOde(dt)
 		#EKF.propagateRK4(dt)
 		EKF.update(ts,ym,measurement_ekf,measurement_gradient,Rk)
 		# copy
@@ -72,9 +72,10 @@ def ekf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 	return(xf,Pf)
 
 def main():
-	#names = ['sims_10_slow']# test case
+	#names = ['sims_11_medium']# test case
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
-	names = ['sims_10_slow','sims_10_medium','sims_10_fast']
+	#names = ['sims_10_slow','sims_10_medium','sims_10_fast']
+	names = ['sims_11_slow','sims_11_medium','sims_11_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
@@ -87,14 +88,14 @@ def main():
 			# this heuristic produces a reasonable balance between conservative and optimistic at all three sample rates, but the performance at the slow rate still sucks. It is stable, though.
 			Qk = np.array([[1.0 + 50.0*(dt-0.01)-40.0*(dt-0.01)*(dt-0.01)]])
 			Rk = np.array([[1.0]])
-		elif namebit == 2:
+		elif namebit == 2 or namebit == 3:
 			# cosine forcing
 			if dt > 0.9:#slow sampling
 				Qk = np.array([[10.0]])
 			elif dt > 0.09:#medium sampling
-				Qk = np.array([[20.0]])
+				Qk = np.array([[2.0]])
 			else:# fast sampling
-				Qk = np.array([[70.0]])
+				Qk = np.array([[1.0]])
 			Rk = np.array([[1.0]])
 			pass
 		print(Qk[0,0])

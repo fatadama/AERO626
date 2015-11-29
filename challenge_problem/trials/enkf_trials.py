@@ -13,6 +13,7 @@ sys.path.append('../')
 import cp_dynamics
 
 sys.path.append('../../filters/python/enkf')
+sys.path.append('../../filters/python/lib')
 import enkf
 
 sys.path.append('../sim_data')
@@ -93,9 +94,9 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 
 def main():
 	global nameBit
-	names = ['sims_01_medium']
+	#names = ['sims_10_medium']
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
-	#names = ['sims_10_slow','sims_10_medium','sims_10_fast']# test case
+	names = ['sims_10_slow','sims_10_medium','sims_10_fast']# test case
 	flag_adapt = True
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
@@ -114,9 +115,9 @@ def main():
 			if dt > .9:# slow sampling
 				Qk = np.array([[3.16/dt]])
 			elif dt > 0.09:# medium sampling
-				Qk = np.array([[2.0/dt]])
+				Qk = np.array([[3.16/dt]])
 			else:# fast sampling
-				Qk = np.array([[0.8/dt]])
+				Qk = np.array([[1.6/dt]])
 			Rk = np.array([[1.0]])
 		# number of steps in each simulation
 		nSteps = len(tsim)

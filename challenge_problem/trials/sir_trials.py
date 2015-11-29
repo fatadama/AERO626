@@ -153,8 +153,8 @@ def main():
 	# number of particles
 	Nsu = 100
 	global nameBit
-	names = ['sims_10_fast']# test case
-	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
+	#names = ['sims_10_slow']# test case
+	names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')

@@ -69,7 +69,7 @@ def ukf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 
 def main():
 	global nameBit
-	names = ['sims_10_fast']# test case
+	names = ['sims_10_slow']# test case
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]

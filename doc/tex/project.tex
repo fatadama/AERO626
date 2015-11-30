@@ -14,6 +14,141 @@
 
 \maketitle
 
+\section{Filter algorithms}
+
+Five estimation algorithms are considered for the nonlinear sequential estimation problem: the Extended Kalman Filter (EKF), the Unscented Kalman Filter (UKF), the Sequential Importance Resampling (SIR) particle filter (PF), the Ensemble Kalman Filter (ENKF), and the Gaussian Mixture Model (GMM). For completeness, the algorithm governing each filter is described in the following sections.
+
+\subsection{Extended Kalman filter}
+
+The Extended Kalman filter is, by far, the most popular sequential estimation algorithm in the field of guidance, navigation, and control. Simply put, the EKF replaces the linear process and measurement influence matrices in the linear Kalman filter algorithm with the Jacobian of nonlinear governing functions evaluated at an aposteriori state estimate. The assumed prior estimate $\hat{x}(0)$, covariance $P(0)$, and dynamic system are of the following form:
+
+\begin{align}
+\hat{x}(0) = E[x_0] \\
+P(0) = E[(\hat{x}(0)-x_0)(\hat{x}(0)-x_0)^T] \\
+x_k = f(x_{k-1},t_{k-1}) + G_k w_k, w_k \sim N(0,Q_k) \\
+y_k = h(x_k,t_k) + v_k, v_k \sim N(0,R_k)
+\end{align}
+
+The discrete propagation equations for the state and covariance follow:
+
+\begin{align}
+\hat{x}_{k}^- = f(\hat{x}_{k-1},t_{k-1}) \\
+P_{k}^- = F_{k-1}P_{k-1}F_{k-1}^T + G_{k-1}Q_{k-1}G_{k-1}^T \\
+F_{k-1} \equiv \frac{\partial f}{\partial x} (\hat{x}_{k-1},t_{k-1})
+\end{align}
+
+The update equations for the state and covariance, given a measurement $\tilde{y}_k$, are:
+
+\begin{align}
+\hat{x}_k = \hat{x}_k^- + K_k(\tilde{y}_k-h(\hat{x}_k^-)) \\
+P_k = (I-K_kH_k)P_k^- \\
+K_k \equiv P_k^- H_k^T (H_k P_k^- H_k^T + R_k)^{-1} \\
+H_k \equiv \frac{\partial h}{\partial x} (\hat{x}_k^-,t_k)
+\end{align}
+
+The EKF has been shown to work well for a variety of systems, given that the estimate PDF remains well approximated by a Gaussian. Many studies have also shown that the UKF generally performs better for nonlinear systems, at the cost of slightly greater computational complexity.
+
+\subsection{Unscented Kalman filter}
+
+The UKF is based on the same idea as the EKF; extend the linear Kalman update to nonlinear systems in an approximate fashion. In the UKF, however, function Jacobians are no longer used; instead, a discrete set of ``sigma points'' are defined and passed through the propagation and update equations. The output points are used to evaluate the system covariances from their definitions.
+
+Define the augmented state vector $x^a$ as follows:
+
+\begin{equation}
+x^a_k = \begin{bmatrix}
+x_k \\w_k \\v_k
+\end{bmatrix} \equiv \begin{bmatrix}
+x^x_k \\x^w_k \\x^v_k
+\end{bmatrix}
+\label{eq:xaug_ukf}
+\end{equation}
+
+In Eq. \ref{eq:xaug_ukf}, $x^x_k$, $x^w_k$, and $x^v_k$ are used as shorthand for the augmented state members associated with the state, process noise, and measurement noise. The $L \times 2L+1$ array of sigma points is defined as follows:
+
+\begin{equation}
+\chi^a_{k-1} = [\hat{x}^a_{k-1} \ \hat{x}^a_{k-1}\pm \sqrt{(L+\lambda)P_{k-1}^a}]
+\end{equation}
+
+Each sigma point is then propagated through the governing nonlinear equation as follows:
+
+\begin{equation}
+\chi^-_{k}(:,j) = f(\chi^x_{k-1}(:,j),t_{k-1}) + G_k \chi^w_{k-1}(:,j), \ \forall \ j
+\end{equation}
+
+The state and covariance apriori estimates are given as weighted averages of the sigma points:
+
+\begin{align}
+\hat{x}_k^- = \sum_{i=1}^{2L+1} W_i^m \chi^{x-}_k(:,i) \\
+P_k^- = \sum_{i=1}^{2L+1} W_i^c (\chi^{x-}_k(:,i)-\hat{x}_k^-)(\chi^{x-}_k(:,i)-\hat{x}_k^-)^T
+\end{align}
+
+In a similar fashion, the update is performed by first passing the propagated sigma points through the measurement equation:
+
+\begin{equation}
+Y_k(:,j) = h(\chi^{x-}_k(:,j),t_k) + \chi^v_{k-1}(:,j)
+\end{equation}
+
+The measurement covariance and state-measurement cross-correlation are evaluated as follows:
+
+% TODO insert equation
+
+\subsection{Gaussian mixture models}
+
+The implementation of the Gaussian mixture model (GMM) is based on Ref. \cite{alspach}. The algorithm is repeated here for completeness. The prior density function is approximated as a sum of multivariate Gaussians with normalizing weights $\alpha_{ki}^{'}$ as follows:
+
+\begin{align}
+	p(x_k | y_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} \eta(x_k-a_{ki},P_{ki}) \\
+	\eta(a,P) \equiv \frac{1}{\sqrt{(2\pi)^n \mathrm{det}(P)}} e^{-\frac{1}{2} a^T P^{-1} a} \\
+	\sum_{i=1}^{\chi_k} \alpha_{ki} = 1
+\end{align}
+
+For a discrete-time dynamic system with state influence function $x_{k+1} = f(x_k) + G_k w_k,w_k \sim N(0,Q_k)$, the individual Gaussian filters are propagated using the Extended Kalman Filter update for the means $a_{ki}$ and the covariances $P_{ki}^{'}$:
+
+\begin{align}
+	p(x_{k} | y_{k-1}) = \sum_{i=1}^{\chi_{k}^{'}} \alpha_{ki}^{'} \eta(x_{k}-a_{ki}^{'},P_{ki}^{'}) \\
+	\chi_{k}^{'} = \chi_{k-1} \\
+	\alpha_{ki}^{'} = \alpha_{(k-1)i} \\
+	a_{ki}^{'} = f_k(a_{(k-1)i})\\
+	P_{ki}^{'} = F_{ki}P_{(k-1)i}F_{ki}^T + G_{k} Q_k G_{k}^T \\
+	F_{ki} \equiv \frac{\partial f_k}{\partial x} (a_{(k-1)i})
+\end{align}
+
+The update equations assume a nonlinear measurement of the form $y_k = h(x_k) + n_k, n_k \sim N(0,R_k)$. The aposteriori density function is approximated as follows:
+
+\begin{align}
+	p(x_{k} | y_{k}) = \sum_{i=1}^{\chi_{k}} \alpha_{ki} \eta(x_k-(a_{ki}^{'}+K_{ki}(y_k-h_k(a_{ki}^{'})),P_{ki}) \\
+	\chi_k \equiv \chi_{k}^{'} \\
+	P_{ki} \equiv P_{ki}^{'} - K_{ki} H_{ki} P_{ki}^{'} \\
+	K_{ki} \equiv P_{ki}^{'} H_{ki}^T (H_{ki} P_{ki}^{'} H_{ki}^T + R_k)^{-1} \\
+	\alpha_{ki} \equiv \frac{\alpha_{ki}^{'} \beta_{ki}}{\sum_{j=1}^{\chi_k} \alpha_{kj}^{'} \beta_{kj} } \\
+	\beta_{kj} \equiv \eta(y_k - h_k(a_{kj}),H_{kj}P_{kj}^{'}H_{kj}^T + R_k)
+\end{align}
+
+This completes the description of the basic algorithm. Initialization of the prior is not addressed in Ref. \cite{alspach}. Two schemes are employed in the current work:
+
+\begin{enumerate}
+	\item Initialization of the means $a_{ki}$ to the sigma points used by the Unscented Kalman Filter
+	\item Monte Carlo selection of the initial means
+\end{enumerate}
+
+In each case, the initial covariances $P_{0i}$ are selected to satisfy a prior Gaussian proposal with mean $\mu(0)$ and covariance $P(0)$. The mean and covariance of the initial distribution are computed as follows:
+
+\begin{align}
+	\mu \equiv E(x_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} a_{ki} \\
+	cov(x_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} (P_{ki} + (a_{ki}-\mu)(a_{ki}-\mu)^T) \label{eq:cov_gmm}
+\end{align}
+
+Eq. \ref{eq:cov_gmm} represents an underconstrained system. By specifying that the initial distributions have equal covariance, the expression can be made tractable and solved for $P_{0}$:
+
+\begin{equation}
+	P_{0} = P(0) - \sum_{i=1}^{\chi_k} (\alpha_{ki}(a_{ki}-\mu)(a_{ki}-\mu)^T)
+	\label{eq:P0_gmm}
+\end{equation}
+
+One practical note: astute readers will observe that the sum in Eq. \ref{eq:P0_gmm} with equal weights matches the statistical definition of the covariance (to within a small bias in the weights). Depending on the number of initial points and their distribution, the value of $P_{0}$ may not satisfy the requirement of positive definiteness for the covariance matrix. To ensure positive definiteness, $P_{0}$ is processed additionally by taking the absolute value of all members, and setting the diagonal elements to zero, to ensure the determinant remains positive.
+
+The initial weights are initially set equal to one another, $\alpha_{ki} = \chi_k^{-1}$. It should be observed that for a unimodal near-Gaussian system, the algorithm will collapse to the Extended Kalman filter after a few iterations, with the means all concentrated near a single point. The GMM is intended to address the case of bimodality in the propagated density function, and is of most interest as an alternative to the PF and ENKF for handling multi-modality of the density.
+
 \section{Governing equation and bifurcation time}
 
 The system dynamics are governed by Eq. \ref{eq:eqom}, given below. The system consists of a cubic nonlinearity with white-noise and cosine forcing terms. For the purposes of estimation, the cosine forcing term is considered ``unknown''; that is, the magnitude may be known but the exact form cannot be used in the system propagation equation. Therefore, in practice both the white-noise term and the cosine forcing terms are lumped into a single process noise term that must encapsulate both sources.
@@ -106,65 +241,6 @@ The test procedure is summarized as follows:
 	\end{enumerate}
 \end{enumerate}
 \end{enumerate}
-
-\section{Filter algorithms}
-
-\subsection{Gaussian mixture models}
-
-The implementation of the Gaussian mixture model (GMM) is based on Ref. \cite{alspach}. The algorithm is repeated here for completeness. The prior density function is approximated as a sum of multivariate Gaussians with normalizing weights $\alpha_{ki}^{'}$ as follows:
-
-\begin{align}
-p(x_k | y_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} \eta(x_k-a_{ki},P_{ki}) \\
-\eta(a,P) \equiv \frac{1}{\sqrt{(2\pi)^n \mathrm{det}(P)}} e^{-\frac{1}{2} a^T P^{-1} a} \\
-\sum_{i=1}^{\chi_k} \alpha_{ki} = 1
-\end{align}
-
-For a discrete-time dynamic system with state influence function $x_{k+1} = f(x_k) + G_k w_k,w_k \sim N(0,Q_k)$, the individual Gaussian filters are propagated using the Extended Kalman Filter update for the means $a_{ki}$ and the covariances $P_{ki}^{'}$:
-
-\begin{align}
-p(x_{k} | y_{k-1}) = \sum_{i=1}^{\chi_{k}^{'}} \alpha_{ki}^{'} \eta(x_{k}-a_{ki}^{'},P_{ki}^{'}) \\
-\chi_{k}^{'} = \chi_{k-1} \\
-\alpha_{ki}^{'} = \alpha_{(k-1)i} \\
-a_{ki}^{'} = f_k(a_{(k-1)i})\\
-P_{ki}^{'} = F_{ki}P_{(k-1)i}F_{ki}^T + G_{k} Q_k G_{k}^T \\
-F_{ki} \equiv \frac{\partial f_k}{\partial x} (a_{(k-1)i})
-\end{align}
-
-The update equations assume a nonlinear measurement of the form $y_k = h(x_k) + n_k, n_k \sim N(0,R_k)$. The aposteriori density function is approximated as follows:
-
-\begin{align}
-p(x_{k} | y_{k}) = \sum_{i=1}^{\chi_{k}} \alpha_{ki} \eta(x_k-(a_{ki}^{'}+K_{ki}(y_k-h_k(a_{ki}^{'})),P_{ki}) \\
-\chi_k \equiv \chi_{k}^{'} \\
-P_{ki} \equiv P_{ki}^{'} - K_{ki} H_{ki} P_{ki}^{'} \\
-K_{ki} \equiv P_{ki}^{'} H_{ki}^T (H_{ki} P_{ki}^{'} H_{ki}^T + R_k)^{-1} \\
-\alpha_{ki} \equiv \frac{\alpha_{ki}^{'} \beta_{ki}}{\sum_{j=1}^{\chi_k} \alpha_{kj}^{'} \beta_{kj} } \\
-\beta_{kj} \equiv \eta(y_k - h_k(a_{kj}),H_{kj}P_{kj}^{'}H_{kj}^T + R_k)
-\end{align}
-
-This completes the description of the basic algorithm. Initialization of the prior is not addressed in Ref. \cite{alspach}. Two schemes are employed in the current work:
-
-\begin{enumerate}
-\item Initialization of the means $a_{ki}$ to the sigma points used by the Unscented Kalman Filter
-\item Monte Carlo selection of the initial means
-\end{enumerate}
-
-In each case, the initial covariances $P_{0i}$ are selected to satisfy a prior Gaussian proposal with mean $\mu(0)$ and covariance $P(0)$. The mean and covariance of the initial distribution are computed as follows:
-
-\begin{align}
-\mu \equiv E(x_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} a_{ki} \\
-cov(x_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} (P_{ki} + (a_{ki}-\mu)(a_{ki}-\mu)^T) \label{eq:cov_gmm}
-\end{align}
-
-Eq. \ref{eq:cov_gmm} represents an underconstrained system. By specifying that the initial distributions have equal covariance, the expression can be made tractable and solved for $P_{0}$:
-
-\begin{equation}
-P_{0} = P(0) - \sum_{i=1}^{\chi_k} (\alpha_{ki}(a_{ki}-\mu)(a_{ki}-\mu)^T)
-\label{eq:P0_gmm}
-\end{equation}
-
-One practical note: astute readers will observe that the sum in Eq. \ref{eq:P0_gmm} with equal weights matches the statistical definition of the covariance (to within a small bias in the weights). Depending on the number of initial points and their distribution, the value of $P_{0}$ may not satisfy the requirement of positive definiteness for the covariance matrix. To ensure positive definiteness, $P_{0}$ is processed additionally by taking the absolute value of all members, and setting the diagonal elements to zero, to ensure the determinant remains positive.
-
-The initial weights are initially set equal to one another, $\alpha_{ki} = \chi_k^{-1}$. It should be observed that for a unimodal near-Gaussian system, the algorithm will collapse to the Extended Kalman filter after a few iterations, with the means all concentrated near a single point. The GMM is intended to address the case of bimodality in the propagated density function, and is of most interest as an alternative to the PF and ENKF for handling multi-modality of the density.
 
 \bibliographystyle{plain}
 \bibliography{ref}

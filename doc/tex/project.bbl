@@ -5,8 +5,7 @@ M.~Adereth.
 \newblock Silverman's mode estimation method explained.
 \newblock Online, October 2014.
 \newblock
-  \url{http://adereth.github.io/blog/2014/10/12/silvermans-mode-detection-meth%
-od-explained/}.
+  \url{http://adereth.github.io/blog/2014/10/12/silvermans-mode-detection-method-explained/}.
 
 \bibitem{alspach}
 Daniel~L. Aspach and Harold~W. Sorenson.
@@ -18,7 +17,6 @@ B.W. Silverman.
 \newblock Using kernel density estimates to investigate multimodality.
 \newblock {\em Journal of the royal statistical society}, 43(1):97--99, 1981.
 \newblock
-  \url{http://www.stat.washington.edu/wxs/Stat593-s03/Literature/silverman-81a%
-.pdf}.
+  \url{http://www.stat.washington.edu/wxs/Stat593-s03/Literature/silverman-81a.pdf}.
 
 \end{thebibliography}

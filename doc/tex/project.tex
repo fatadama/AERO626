@@ -16,6 +16,8 @@
 
 \section{Governing equation and bifurcation time}
 
+The system dynamics are governed by Eq. \ref{eq:eqom}, given below. The system consists of a cubic nonlinearity with white-noise and cosine forcing terms. For the purposes of estimation, the cosine forcing term is considered ``unknown''; that is, the magnitude may be known but the exact form cannot be used in the system propagation equation. Therefore, in practice both the white-noise term and the cosine forcing terms are lumped into a single process noise term that must encapsulate both sources.
+
 \begin{align}
 \ddot{x} = x - \epsilon x^3 + a_0 \cos{\omega_t t} + w(t) \label{eq:eqom} \\
 w(t) \sim N(0,q)
@@ -46,11 +48,24 @@ In addition, for numerical convenience in simulating the system dynamics, the pr
 w(t) \rightarrow w_k \sim N(0,qT_s), t_k \leq t \leq t_{k+1}
 \end{equation}
 
-The dynamic uncertainty discretization time is taken as $T_s = 0.01$.
+The dynamic uncertainty discretization time is taken as $T_s = 0.001$, which is an order of magnitude smaller than any of the measurement sample times used later.
+
+\subsection{Bifurcation}
 
 One feature of interest for the system is its equilibria: the unforced system has roots at $x = 0, \pm \sqrt{\frac{1}{\epsilon}}$. The roots at $\pm \sqrt{\frac{1}{\epsilon}}$ are attractive; the root at the origin is repulsive. The net effect is that, when propagated forward for a long enough time, a probability density initially centered at the origin will bifurcate into two distributions, roughly centered around the attractive equilibria. It is of interest to determine the bifurcation time, in examining the effectiveness of various filters.
 
-Bifurcation time is analyzed with no forcing ($a_0 = 0$) by performing simulating a number of points from a normal distribution about the origin, then propagating forward in time. A test for multimodality is performed using smoothed kernel density estimates (KDEs). The procedure is outlined briefly in the following subsection.
+Bifurcation time is analyzed with no forcing ($a_0 = 0$) by performing simulating a number of points from a normal distribution about the origin, then propagating forward in time. Results are plotted, and the bifurcation time estimated qualitatively. Fig. \ref{fig:bifurcation_animate_1} shows the development of the system bifurcation from its initial condition. The unforced motion is also shown by plotting the system after 9.5 seconds of development. From these plots, it is clear that bifurcation appears qualitatively on the order of a second or so. Therefore, the sample time of $10.0$ seconds is used to consider the bifurcated system in later study.
+
+\begin{figure}[tb!]
+\centering
+\includegraphics[height=0.3\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f1_t0.010010}.png}
+\includegraphics[height=0.3\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f151_t1.511512}.png}
+\includegraphics[height=0.3\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f951_t9.519520}.png}
+\caption{Figures showing the development of the distribution. Left: time hsitory of position. Center: time history of speed. Right: phase portrait of system, with 'x' used to indicate the current condition of the state. Top: Initially Gaussian points with position variance $0.1$ and speed variance $1.0$. Middle: Condition of the sustem after 1.5 seconds; clear separation between points in the phase portratit is visible. Bottom: Long-term development of the system after 9.5 seconds, showing the unforced motion of points.}
+\label{fig:bifurcation_animate_1}
+\end{figure}
+
+%A test for multimodality is performed using smoothed kernel density estimates (KDEs). The procedure is outlined briefly in the following subsection.
 
 \subsection{Test for multimodality}
 
@@ -91,6 +106,65 @@ The test procedure is summarized as follows:
 	\end{enumerate}
 \end{enumerate}
 \end{enumerate}
+
+\section{Filter algorithms}
+
+\subsection{Gaussian mixture models}
+
+The implementation of the Gaussian mixture model (GMM) is based on Ref. \cite{alspach}. The algorithm is repeated here for completeness. The prior density function is approximated as a sum of multivariate Gaussians with normalizing weights $\alpha_{ki}^{'}$ as follows:
+
+\begin{align}
+p(x_k | y_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} \eta(x_k-a_{ki},P_{ki}) \\
+\eta(a,P) \equiv \frac{1}{\sqrt{(2\pi)^n \mathrm{det}(P)}} e^{-\frac{1}{2} a^T P^{-1} a} \\
+\sum_{i=1}^{\chi_k} \alpha_{ki} = 1
+\end{align}
+
+For a discrete-time dynamic system with state influence function $x_{k+1} = f(x_k) + G_k w_k,w_k \sim N(0,Q_k)$, the individual Gaussian filters are propagated using the Extended Kalman Filter update for the means $a_{ki}$ and the covariances $P_{ki}^{'}$:
+
+\begin{align}
+p(x_{k} | y_{k-1}) = \sum_{i=1}^{\chi_{k}^{'}} \alpha_{ki}^{'} \eta(x_{k}-a_{ki}^{'},P_{ki}^{'}) \\
+\chi_{k}^{'} = \chi_{k-1} \\
+\alpha_{ki}^{'} = \alpha_{(k-1)i} \\
+a_{ki}^{'} = f_k(a_{(k-1)i})\\
+P_{ki}^{'} = F_{ki}P_{(k-1)i}F_{ki}^T + G_{k} Q_k G_{k}^T \\
+F_{ki} \equiv \frac{\partial f_k}{\partial x} (a_{(k-1)i})
+\end{align}
+
+The update equations assume a nonlinear measurement of the form $y_k = h(x_k) + n_k, n_k \sim N(0,R_k)$. The aposteriori density function is approximated as follows:
+
+\begin{align}
+p(x_{k} | y_{k}) = \sum_{i=1}^{\chi_{k}} \alpha_{ki} \eta(x_k-(a_{ki}^{'}+K_{ki}(y_k-h_k(a_{ki}^{'})),P_{ki}) \\
+\chi_k \equiv \chi_{k}^{'} \\
+P_{ki} \equiv P_{ki}^{'} - K_{ki} H_{ki} P_{ki}^{'} \\
+K_{ki} \equiv P_{ki}^{'} H_{ki}^T (H_{ki} P_{ki}^{'} H_{ki}^T + R_k)^{-1} \\
+\alpha_{ki} \equiv \frac{\alpha_{ki}^{'} \beta_{ki}}{\sum_{j=1}^{\chi_k} \alpha_{kj}^{'} \beta_{kj} } \\
+\beta_{kj} \equiv \eta(y_k - h_k(a_{kj}),H_{kj}P_{kj}^{'}H_{kj}^T + R_k)
+\end{align}
+
+This completes the description of the basic algorithm. Initialization of the prior is not addressed in Ref. \cite{alspach}. Two schemes are employed in the current work:
+
+\begin{enumerate}
+\item Initialization of the means $a_{ki}$ to the sigma points used by the Unscented Kalman Filter
+\item Monte Carlo selection of the initial means
+\end{enumerate}
+
+In each case, the initial covariances $P_{0i}$ are selected to satisfy a prior Gaussian proposal with mean $\mu(0)$ and covariance $P(0)$. The mean and covariance of the initial distribution are computed as follows:
+
+\begin{align}
+\mu \equiv E(x_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} a_{ki} \\
+cov(x_k) = \sum_{i=1}^{\chi_k} \alpha_{ki} (P_{ki} + (a_{ki}-\mu)(a_{ki}-\mu)^T) \label{eq:cov_gmm}
+\end{align}
+
+Eq. \ref{eq:cov_gmm} represents an underconstrained system. By specifying that the initial distributions have equal covariance, the expression can be made tractable and solved for $P_{0}$:
+
+\begin{equation}
+P_{0} = P(0) - \sum_{i=1}^{\chi_k} (\alpha_{ki}(a_{ki}-\mu)(a_{ki}-\mu)^T)
+\label{eq:P0_gmm}
+\end{equation}
+
+One practical note: astute readers will observe that the sum in Eq. \ref{eq:P0_gmm} with equal weights matches the statistical definition of the covariance (to within a small bias in the weights). Depending on the number of initial points and their distribution, the value of $P_{0}$ may not satisfy the requirement of positive definiteness for the covariance matrix. To ensure positive definiteness, $P_{0}$ is processed additionally by taking the absolute value of all members, and setting the diagonal elements to zero, to ensure the determinant remains positive.
+
+The initial weights are initially set equal to one another, $\alpha_{ki} = \chi_k^{-1}$. It should be observed that for a unimodal near-Gaussian system, the algorithm will collapse to the Extended Kalman filter after a few iterations, with the means all concentrated near a single point. The GMM is intended to address the case of bimodality in the propagated density function, and is of most interest as an alternative to the PF and ENKF for handling multi-modality of the density.
 
 \bibliographystyle{plain}
 \bibliography{ref}

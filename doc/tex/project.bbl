@@ -8,6 +8,11 @@ M.~Adereth.
   \url{http://adereth.github.io/blog/2014/10/12/silvermans-mode-detection-meth%
 od-explained/}.
 
+\bibitem{alspach}
+Daniel~L. Aspach and Harold~W. Sorenson.
+\newblock Nonlinear bayesian estimation using gaussian sum approximations.
+\newblock {\em IEEE Transactions on Automatic Control}, AC-17(4), 1972.
+
 \bibitem{silverman}
 B.W. Silverman.
 \newblock Using kernel density estimates to investigate multimodality.

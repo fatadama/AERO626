@@ -37,7 +37,7 @@ class filterdat():
 				print('\begin{tabular}{|c|c|c|c|c|}')
 				for k in range(3):
 					print('\hline')
-					print('%f & %f & %f & %f & %f \\' % (TS[k],self.data[nb,k,0],self.data[nb,k,1],self.data[nb,k,2],self.data[nb,k,3]))
+					print('%8.4g & %8.4g & %8.4g & %8.4g & %8.4g \\' % (TS[k],self.data[nb,k,0],self.data[nb,k,1],self.data[nb,k,2],self.data[nb,k,3]))
 				print('\end{tabular}')
 				print('\caption{Performance metrics for ')
 				print(' %s ' % (self.name.upper()))
@@ -58,9 +58,12 @@ class filterdat():
 				# print to terminal
 				FID.write('\\begin{table}[tb!]\n')
 				FID.write('\\begin{tabular}{|c|c|c|c|c|}\n')
+				# write column labels
+				FID.write('\hline\n')
+				FID.write('$T_s$ & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\\\\n')
 				for k in range(3):
 					FID.write('\hline\n')
-					FID.write('%f & %f & %f & %f & %f \\\\\n' % (TS[k],self.data[nb,k,0],self.data[nb,k,1],self.data[nb,k,2],self.data[nb,k,3]))
+					FID.write('%8.4g & %8.4g & %8.4g & %8.4g & %8.4g \\\\\n' % (TS[k],self.data[nb,k,0],self.data[nb,k,1],self.data[nb,k,2],self.data[nb,k,3]))
 				FID.write('\end{tabular}\n')
 				FID.write('\caption{Performance metrics for ')
 				FID.write('%s ' % (self.name.upper()))

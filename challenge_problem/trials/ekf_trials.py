@@ -72,15 +72,13 @@ def ekf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 	return(xf,Pf)
 
 def main():
-	#names = ['sims_11_medium']# test case
+	names = ['sims_01_fast']# test case
 	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
 	#names = ['sims_10_slow','sims_10_medium','sims_10_fast']
-	names = ['sims_11_slow','sims_11_medium','sims_11_fast']
+	#names = ['sims_11_slow','sims_11_medium','sims_11_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
-
-		#Ns = 1
 
 		namebit = int(nameNow[5:7],2)
 		# parse the name
@@ -88,16 +86,25 @@ def main():
 			# this heuristic produces a reasonable balance between conservative and optimistic at all three sample rates, but the performance at the slow rate still sucks. It is stable, though.
 			Qk = np.array([[1.0 + 50.0*(dt-0.01)-40.0*(dt-0.01)*(dt-0.01)]])
 			Rk = np.array([[1.0]])
-		elif namebit == 2 or namebit == 3:
+		elif namebit == 2:
 			# cosine forcing
 			if dt > 0.9:#slow sampling
-				Qk = np.array([[10.0]])
+				Qk = np.array([[3.16]])
 			elif dt > 0.09:#medium sampling
-				Qk = np.array([[2.0]])
+				Qk = np.array([[3.16]])
 			else:# fast sampling
-				Qk = np.array([[1.0]])
+				Qk = np.array([[3.16]])
 			Rk = np.array([[1.0]])
 			pass
+		elif namebit == 3:
+			# cosine forcing
+			if dt > 0.9:#slow sampling
+				Qk = np.array([[0.65]])
+			elif dt > 0.09:#medium sampling
+				Qk = np.array([[0.316]])
+			else:# fast sampling
+				Qk = np.array([[0.1]])
+			Rk = np.array([[1.0]])
 		print(Qk[0,0])
 		# number of steps in each simulation
 		nSteps = len(tsim)
@@ -159,7 +166,7 @@ def main():
 		chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
 
 		# plot the mean NEES with the 95% confidence bounds
-		fig2 = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
+		fig2 = plt.figure(figsize=(6.0,3.37)) #figsize tuple is width, height
 		tilt = "EKF, Ts = %.2f, %d sims, " % (dt, Ns)
 		if namebit == 0:
 			tilt = tilt + 'unforced'
@@ -201,7 +208,7 @@ def main():
 
 		# plot all NEES
 		'''
-		fig = plt.figure(figsize=(5.0,2.81))
+		fig = plt.figure(figsize=(6.0,3.37))
 		ax = fig.add_subplot(111,ylabel='NEES')
 		ax.plot(tsim,nees_history,'b-')
 		ax.grid()

@@ -69,8 +69,8 @@ def ukf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 
 def main():
 	global nameBit
-	names = ['sims_10_slow']# test case
-	#names = ['sims_01_slow','sims_01_medium','sims_01_fast']
+	names = ['sims_01_fast']# test case
+	#names = ['sims_11_slow','sims_11_medium','sims_11_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
@@ -84,11 +84,20 @@ def main():
 		if nameBit == 2:
 			# tuned noise levels for the UKF with cosine forcing
 			if dt > .9:# slow sampling
-				Qk = np.array([[3.16/dt]])
+				Qk = np.array([[3.16]])
 			elif dt > 0.09:# medium sampling
-				Qk = np.array([[2.0/dt]])
+				Qk = np.array([[25.0]])
 			else:# fast sampling
-				Qk = np.array([[0.8/dt]])
+				Qk = np.array([[160.0]])
+			Rk = np.array([[1.0]])
+		if nameBit == 3:
+			# tuned noise levels for the UKF with cosine forcing and white noise
+			if dt > .9:# slow sampling
+				Qk = np.array([[1.0]])
+			elif dt > 0.09:# medium sampling
+				Qk = np.array([[3.16]])
+			else:# fast sampling
+				Qk = np.array([[16.0]])
 			Rk = np.array([[1.0]])
 		# number of steps in each simulation
 		nSteps = len(tsim)
@@ -157,7 +166,7 @@ def main():
 		chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
 
 		# plot the mean NEES with the 95% confidence bounds
-		fig2 = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
+		fig2 = plt.figure(figsize=(6.0,3.37)) #figsize tuple is width, height
 		tilt = "UKF, Ts = %.2f, %d sims, " % (dt, Ns)
 		if nameBit == 0:
 			tilt = tilt + 'unforced'
@@ -197,7 +206,7 @@ def main():
 		FID.close()
 
 		# plot all NEES
-		fig = plt.figure(figsize=(5.0,2.81))
+		fig = plt.figure(figsize=(6.0,3.37))
 		ax = fig.add_subplot(111,ylabel='NEES')
 		ax.plot(tsim,nees_history,'b-')
 		ax.grid()

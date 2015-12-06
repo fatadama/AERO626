@@ -60,7 +60,9 @@ class gmm():
 	## init_monte
 	#
 	# initialize the Gaussian terms based on an initial (Gaussian) proposed distribution
-	def init_monte(self,mu,P0):
+	def init_monte(self,mu,P0,ts=None):
+		if ts is not None:
+			self.ts = ts
 		# draw random points for the initial means
 		self.aki = np.random.multivariate_normal(mu,P0,size=(self.aki.shape[1],)).transpose()
 		# uniform initial weights
@@ -77,27 +79,45 @@ class gmm():
 			self.Pki[:,:,k] = Pkk0.copy()
 	## propagation function for the case where the order of the process noise and state uncertainty is comparable
 	#
+	# handles integration using a maximum step size of 0.01 seconds
 	# @param[in] dt time increment; first-order Euler integration used
 	def propagate_normal(self,dt):
-		# update the means: evaluate the propagation function, Jacobian, and process noise influence for each means
-		dxi = np.zeros(self.aki.shape)
-		Fki = np.zeros((self.aki.shape[0],self.aki.shape[0],self.aki.shape[1]))
-		Gki = np.zeros((self.aki.shape[0],self.Qk.shape[0],self.aki.shape[1]))
-		for k in range(self.aki.shape[1]):
-			# eval the derivative
-			dxi[:,k] = self.propagateFunction(self.aki[:,k],self.ts,self.u)
-			# eval the Jacobian
-			Fki[:,:,k] = self.propagationJacobian(self.aki[:,k],self.ts,self.u)
-			# eval the process noise influence
-			Gki[:,:,k] = self.processInfluence(self.aki[:,k],self.ts,self.u)
-			# propagate the aki
-			self.aki[:,k] = self.aki[:,k] + dt*dxi[:,k]
-			Fki[:,:,k] = np.identity(self.aki.shape[0]) + dt*Fki[:,:,k]
-			Gki[:,:,k] = Gki[:,:,k]*dt
-			# propagate the covariance
-			self.Pki[:,:,k] = np.dot(Fki[:,:,k],np.dot(self.Pki[:,:,k],Fki[:,:,k].transpose())) + np.dot(Gki[:,:,k],np.dot(self.Qk,Gki[:,:,k].transpose()))
-		#update the time
-		self.ts = self.ts + dt
+		if dt > 0.01:
+			# determine the number of steps 
+			stepsU = int(dt/0.01)
+			dtsize = []
+			for k in range(stepsU):
+				dtsize.append(0.01)
+			rem = (dt % 0.01)
+			if rem > 1.0e-4:
+				# append the remainder to the steps
+				dtsize.append(rem)
+				stepsU = stepsU + 1
+			for k in range(stepsU):
+				self.propagate_normal(dtsize[k])
+				#print("%d,%f,%f" % (k,self.ts,dtsize[k]))
+			return
+		else:
+			# update the means: evaluate the propagation function, Jacobian, and process noise influence for each means
+			dxi = np.zeros(self.aki.shape)
+			Fki = np.zeros((self.aki.shape[0],self.aki.shape[0],self.aki.shape[1]))
+			Gki = np.zeros((self.aki.shape[0],self.Qk.shape[0],self.aki.shape[1]))
+			for k in range(self.aki.shape[1]):
+				# eval the derivative
+				dxi[:,k] = self.propagateFunction(self.aki[:,k],self.ts,self.u)
+				# eval the Jacobian
+				Fki[:,:,k] = self.propagationJacobian(self.aki[:,k],self.ts,self.u)
+				# eval the process noise influence
+				Gki[:,:,k] = self.processInfluence(self.aki[:,k],self.ts,self.u)
+				# propagate the aki
+				self.aki[:,k] = self.aki[:,k] + dt*dxi[:,k]
+				Fki[:,:,k] = np.identity(self.aki.shape[0]) + dt*Fki[:,:,k]
+				Gki[:,:,k] = Gki[:,:,k]*dt
+				# propagate the covariance
+				self.Pki[:,:,k] = np.dot(Fki[:,:,k],np.dot(self.Pki[:,:,k],Fki[:,:,k].transpose())) + np.dot(Gki[:,:,k],np.dot(self.Qk,Gki[:,:,k].transpose()))
+			#update the time
+			self.ts = self.ts + dt
+			return
 	def update(self,ymeas):
 		Bkj = np.zeros(self.aki.shape[1])
 		# compute the normalizing factor
@@ -144,11 +164,15 @@ class gmm():
 		for k in range(self.aki.shape[1]):
 			xk = XK[:,k].copy()
 			pk[k] = self.eval_pdf_x(xk)
-			'''
-			for j in range(self.aki.shape[1]):
-				pk[k] = pk[k] + self.alphai[j]*gaussianNormalPdf(xk,self.aki[:,j],self.Pki[:,:,j])
-			'''
 		return(XK,pk)
+	## get_max_likelihood
+	#
+	# Find the current mean with the maximum PDF value associated
+	# @param[out] Mean with the maximum likelihood
+	def get_max_likelihood(self):
+		(XK,pk) = self.get_pdf()
+		idx = np.argmax(pk)
+		return self.aki[:,idx]
 	## resample from the kth Gaussian with probability alphai[k], and set the new weights to equal
 	def resample(self):
 		Aki = np.zeros(self.aki.shape)

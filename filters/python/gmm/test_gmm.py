@@ -1,4 +1,4 @@
-
+ 
 import sys
 import numpy as np
 import scipy.integrate as sp
@@ -63,7 +63,7 @@ def main(argin='./',adaptFlag = False):
     GMM = gmm.gmm(2,25,Qkin,Rkin,stateDerivativeGMM,stateJacobian,stateProcessInfluence,measurementFunction,measurementJacobian)
 
     dt = 0.01
-    tfin = 10.0#10.0
+    tfin = 10.0
     nSteps = int(tfin/dt)
     tsim = 0.0
 
@@ -83,10 +83,12 @@ def main(argin='./',adaptFlag = False):
     alphai = np.zeros((nSteps,GMM.aki.shape[1]))
     Pki = np.zeros((nSteps,2,2,GMM.aki.shape[1]))
     yt = np.zeros(nSteps)
+    tplot = np.zeros(nSteps)
 
     t1 = time.time()
     for k in range(nSteps):
         # log
+        tplot[k] = tsim
         xt[k,:] = xk.copy()
         (XK[k,:,:],pk[k,:]) = GMM.get_pdf()
         alphai[k,:] = GMM.alphai.copy()
@@ -108,9 +110,10 @@ def main(argin='./',adaptFlag = False):
         # resample?
         GMM.resample()
     t2 = time.time()
-    tplot = np.arange(0.0,tfin,dt)
 
     print('Completed simulation in %f seconds' % (t2-t1))
+
+    print(XK.shape,tplot.shape)
 
     # len(tplot) x Ns matrix of times
     tMesh = np.kron(np.ones((GMM.aki.shape[1],1)),tplot).transpose()

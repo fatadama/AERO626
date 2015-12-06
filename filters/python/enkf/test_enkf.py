@@ -4,6 +4,7 @@ import numpy as np
 import scipy.integrate as sp
 import matplotlib.pyplot as plt
 
+sys.path.append('../lib')
 import enkf
 
 ## stateDerivative(x,t,u) - returns the derivative of the filter state at a given time, for particular control values
@@ -64,6 +65,7 @@ def main(argin='./',adaptFlag = False):
 
     xt = np.zeros((nSteps,2))
     xf = np.zeros((nSteps,2))
+    XF = np.zeros((nSteps,2,EnKF._N))
     yt = np.zeros(nSteps)
     Npts = np.zeros(nSteps)
     Pxd = np.zeros((nSteps,2))
@@ -72,6 +74,8 @@ def main(argin='./',adaptFlag = False):
         # log
         xt[k,:] = xk.copy()
         xf[k,:] = Enkfx.copy()
+        if not adaptFlag:
+            XF[k,:,:] = EnKF.xk.copy()
         Pxd[k,0] = Pxx[0,0]
         Pxd[k,1] = Pxx[1,1]
         # propagate filter
@@ -89,8 +93,10 @@ def main(argin='./',adaptFlag = False):
         yt[k] = ymeas[0]
         # update EKF
         EnKF.update(ymeas)
+        EnKF.resample()
         # get the mean and covariance estimate out
         Enkfx = np.mean(EnKF.xk,axis=1)
+
         # store number of points
         Npts[k] = EnKF.get_N()
         Pxx = np.zeros((2,2))
@@ -128,12 +134,27 @@ def main(argin='./',adaptFlag = False):
         ax[k].grid()
     fig.show()
 
-    fig2 = plt.figure()
-    ax = fig2.add_subplot(111,ylabel='N')
-    ax.plot(tplot,Npts)
-    ax.grid()
+    if not adaptFlag:
+        fig2 = plt.figure()
+        ax = fig2.add_subplot(121,ylabel='x1')
+        ax.plot(tplot,xt[:,0],'b-')
+        ax.plot(tplot,XF[:,0,:],'d')
+        ax.grid()
 
-    fig2.show()
+        ax = fig2.add_subplot(122,ylabel='x2')
+        ax.plot(tplot,xt[:,1],'b-')
+        ax.plot(tplot,XF[:,1,:],'d')
+        ax.grid()        
+
+        fig2.show()
+        pass
+    else:
+        fig2 = plt.figure()
+        ax = fig2.add_subplot(111,ylabel='N')
+        ax.plot(tplot,Npts)
+        ax.grid()
+
+        fig2.show()
 
     raw_input("Return to exit")
 
@@ -141,5 +162,5 @@ def main(argin='./',adaptFlag = False):
     return
 
 if __name__ == '__main__':
-    adapt = True
+    adapt = False
     main(adaptFlag = adapt)

@@ -19,7 +19,10 @@ import scipy.stats as stats
 # @param[out] p the pdf evaluated at x
 def gaussianNormalPdf(x,mu,P):
 	Pinv = np.linalg.inv(P)
-	p = math.exp(-0.5*np.dot(x-mu,np.dot(Pinv,x-mu)))/math.sqrt(math.pow(2.0*math.pi,x.shape[0])*np.linalg.det(P))
+	d = x.shape[0]
+	dp = np.dot(x-mu,np.dot(Pinv,x-mu))
+	dt = 1.0/math.sqrt(math.pow(2.0*math.pi,float(d))*np.linalg.det(P))
+	p = math.exp(-0.5*dp)*dt
 	return p
 
 # clusterConvergence2Modes
@@ -55,7 +58,7 @@ def clusterConvergence2Modes(xk,activeMeans):
 	# evaluate the likelihood for each point, under the bimodal assumption
 	L2 = np.zeros(N)
 	for k in range(N):
-		# assume the liklihood is proportional to the PDF
+		# assume the likelihood is proportional to the PDF
 		pxk = gaussianNormalPdf(xk[:,j],meansk[:,idxk[k]],Pkkk[:,:,idxk[k]])
 		L2[k] = pxk
 	#Akaike information criterion for bimodal case
@@ -250,7 +253,7 @@ class enkf():
 		self.xk = np.zeros((self._n,self._N))
 	## get_N get the number of ensemble members
 	#
-	# @param[out] No number of ensemble members
+	# @param[out] N number of ensemble members
 	def get_N(self):
 		return self._N
 	## set_control set the control to a specified value
@@ -270,24 +273,36 @@ class enkf():
 	#
 	# @param[in] dt delta-time over which to integrate
 	# @param[in] dtout delta-time at which to return propagation values, for smoother plotting with long-period measurements
-	# @param[out] XPROP value of the system ensemble members during simulation, discretized at dtout
 	def propagateOde(self,dt,dtout = None):
 		if dtout == None:
-			dtout = dt
-		# generate process noise for each sample, size is nv x N where nv is length of process noise vector
-		vk = np.random.multivariate_normal(np.zeros(self._Qk.shape[0]), self._Qk, size=(self._N,)).transpose()
-		# time vector for simulation
-		tsim = np.arange(self.t,self.t+dt+dtout,dtout)
-		# propagate each sample
-		XPROP = np.zeros((tsim.shape[0],2,self._N))
-		for k in range(self._N):
-			y = sp.odeint(self._propagateFunction,self.xk[:,k],tsim,args=(self.u,vk[:,k],))
-			XPROP[:,:,k] = y.copy()
-			#y = sp.odeint(self._propagateFunction,self.xk[:,k],np.array([self.t,self.t+dt]),args=(self.u,vk[:,k],))
-			self.xk[:,k] = y[-1,:].copy()
-		# update the time
-		self.t = self.t + dt
-		return(XPROP)
+			dtout = 0.1*dt
+		# vector of times over which to integrate
+		nu = int(dt/dtout)
+		dts = [dtout]
+		for k in range(1,nu):
+			dts.append(dtout)
+		rem = dt - dtout*nu
+		
+		if rem > dt*1.0e-4:
+			dts.append(rem)
+			nu = nu + 1
+
+		for kouter in range(nu):
+			# generate process noise for each sample, size is nv x N where nv is length of process noise vector
+			vk = np.random.multivariate_normal(np.zeros(self._Qk.shape[0]), self._Qk, size=(self._N,)).transpose()
+			# time vector for simulation
+			tsim = np.array([self.t, self.t+dts[kouter]])
+			#tsim = np.arange(self.t,self.t+dts[kouter])
+			# propagate each sample
+			XPROP = np.zeros((tsim.shape[0],2,self._N))
+			for k in range(self._N):
+				y = sp.odeint(self._propagateFunction,self.xk[:,k],tsim,args=(self.u,vk[:,k],))
+				XPROP[:,:,k] = y.copy()
+				#y = sp.odeint(self._propagateFunction,self.xk[:,k],np.array([self.t,self.t+dt]),args=(self.u,vk[:,k],))
+				self.xk[:,k] = y[-1,:].copy()
+			# update the time
+			self.t = self.t + dts[kouter]
+			#print(kouter,dts[kouter],self.t)
 	## propagate the system for dt seconds using a first-order Euler approximation
 	def propagate(self,dt):
 		# generate process noise for each sample, size is nv x N where nv is length of process noise vector
@@ -318,9 +333,19 @@ class enkf():
 		Kk = np.dot(Pxx,np.dot(self._Hk.transpose(),invTerm))
 		# update each state
 		for k in range(self._N):
-			innov = Kk*(ymeas + dy[:,k] - np.dot(self._Hk,self.xk[:,k]))
+			innov = np.dot(Kk,(ymeas + dy[:,k] - np.dot(self._Hk,self.xk[:,k])))
 			for j in range(self._n):
 				self.xk[j,k] = self.xk[j,k] + innov[j]
+	## resample from the current mean and (unimodal) covariance3
+	def resample(self):
+		# mean for the PDF
+		mu = np.mean(self.xk,axis=1)
+		# compute covariance for PDF
+		Pxx = np.zeros((self._n,self._n))
+		coef = 1.0/(float(self._N)-1.0)
+		for k in range(self._N):
+			Pxx = Pxx + coef*np.outer(self.xk[:,k]-mu,self.xk[:,k]-mu)
+		self.xk = np.random.multivariate_normal(mu,Pxx,size=(self._N,)).transpose()
 
 ## Ensemble Kalman filter derived class for the case where the measurement function is nonlinear. Uses the Unscented form of the update equations.
 class nonlinear_enkf(enkf):
@@ -405,7 +430,6 @@ class clustering_enkf(nonlinear_enkf):
 		nonlinear_enkf.propagateOde(self,dt,dtout)
 		# call the convergenceCheck function
 		(idxk,mui) = clusterConvergence2Modes(self.xk,self.activeMeans)
-		print(mui)
 		self.meansIdx = idxk
 		self.activeMeans = mui.shape[0]
 		self.means[:,0:self.activeMeans] = mui.transpose().copy()

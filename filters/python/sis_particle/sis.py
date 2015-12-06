@@ -36,14 +36,28 @@ class sis():
         # initialize if we got this far and the various function handles were assigned
         if (self.processNoiseSample is not None) and (self.propagateParticle is not None) and (self.measurementNoisePdf is not None):
             self.initFlag = True
-    def update(self,dt,ymeas):
+    def update(self,dt,ymeas,dtmin=None):
         if self.initFlag:
-            # for each particle
+            if dtmin is None:
+                nT = 1
+                dtmin = dt
+                rem = 0.0
+            else:
+                nT = int(dt/dtmin)
+                # remainder
+                rem = nT % dtmin
+            # for each particle propagate
             for k in range(self.Ns):
-                # draw process noise according to the process noise model
-                vki = self.processNoiseSample(self.XK[:,k])
-                # propagate the particle
-                self.XK[:,k] = self.propagateParticle(self.XK[:,k],dt,vki)
+                for jk in range(nT):
+                    # draw process noise according to the process noise model
+                    vki = self.processNoiseSample(self.XK[:,k])
+                    # propagate the particle
+                    self.XK[:,k] = self.propagateParticle(self.XK[:,k],dtmin,vki)
+                if rem > 1.0e-4:
+                    # draw process noise according to the process noise model
+                    vki = self.processNoiseSample(self.XK[:,k])
+                    # propagate the particle
+                    self.XK[:,k] = self.propagateParticle(self.XK[:,k],rem,vki)
             # compute the weights
             for k in range(self.Ns):
                 # using the prior for the weight update, each updated weight is simpy the current value times the probability of the measurement given the prior state

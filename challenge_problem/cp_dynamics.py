@@ -9,7 +9,7 @@ import scipy.integrate as sp
 ## epsilon_eqom nonlinear parameter in governing equation
 epsilon_eqom = 1.0e-2
 ## a_0 amplitude of forcing costine term
-a_0 = 2.0
+a_0 = 0.5
 ## omega_t frequency of forcing function
 omega_t = 1.25
 ## DT discretization time for dynamic uncertainty
@@ -18,6 +18,10 @@ DT = 1e-3
 q_w = 1.0*DT
 ## r_w standard deviation of measurement noise
 r_w = 1.0
+## r_w_cluster standard deviation of measurement noise to use for cluster trials: reduces the uncertainty
+r_w_cluster = 0.01
+## q_w_cluster standard deviation of process noise to use for cluster trials: reduces the uncertainty
+q_w_cluster = 0.01*DT
 
 ## ode_wrapper Ensures good integrator convergence by enforcing piecewise-constant noise
 #
@@ -122,6 +126,15 @@ def eqom_stoch(x,t,v=None):
         dx[1] = dx[1] + v
     return dx
 
+## Stochastic equation of motion without forcing, with reduced process noise for the clustering case
+def eqom_stoch_cluster(x,t,v=None):
+    dx = eqom_det(x,t)
+    if v is None:
+        dx[1] = dx[1] + np.random.normal(scale=q_w_cluster)
+    else:
+        dx[1] = dx[1] + v
+    return dx
+
 ## eqom_stoch_jac Jacobian of eqom_stoch at a given state and time
 #
 #   @param[in] t time
@@ -196,4 +209,10 @@ class cp_simObject:
 class cp_simObjectNonInformative(cp_simObject):
     ## Returns the position squared measurement with sensor noise as a 1-length numpy vector
     def measureFunction(self):
-        return np.array([ self._xk[0]*self._xk[0] + np.random.normal(scale=r_w) ])
+        return np.array([ self._xk[0]*self._xk[0] + np.random.normal(scale=r_w_cluster) ])
+
+## Derived simulation class object for the specific case of multiple state clusters - uses a smaller measurement variable to try to encourage these bifurcated solutions in the output
+class cp_simObjectCluster(cp_simObject):
+    ## Returns the position measurement with less noise, to exacerbate the difference in the several cases
+    def measureFunction(self):
+        return np.array([ self._xk[0] + np.random.normal(scale=r_w_cluster) ])

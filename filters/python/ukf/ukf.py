@@ -95,10 +95,12 @@ class ukf():
                 XAUG[0:self.n,k] = self.propagateRK4(dt,XAUG[0:self.n,k],XAUG[self.n:(self.n+self.nv),k])
             # compute the apriori state
             self.xhat = self.xhat + wm[k]*XAUG[0:self.n,k]
-        # compute the apriori covariance
         self.Pk = np.zeros((self.n,self.n))
         for k in range(2*L+1):
             self.Pk = self.Pk + wc[k]*np.outer( XAUG[0:self.n,k]-self.xhat,(XAUG[0:self.n,k]-self.xhat) )
+        # time update
+        self.t = self.t + dt
+        # compute the apriori covariance
         # pass the propagated state through the measurement function
         YAUG = np.zeros((ny,2*L+1))
         yhat = np.zeros(ny)
@@ -117,12 +119,10 @@ class ukf():
         self.xhat = self.xhat + np.dot(Kk,ymeas-yhat)
         # covariance update
         self.Pk = self.Pk-np.dot(Kk,Pxy.transpose())
-        # time update
-        self.t = self.t + dt
     ## propagateRK4(self,dt,xk,vk) Propagate a given state xk with constant process noise vk over an interval dt.
     #
     # Uses a single runge-kutta timestep without adaptation. If you need to propagate for long periods of time without measurements, this implementation will not be suitable
-    #   @param dt interval overwhich is propagate
+    #   @param dt interval over which to propagate
     #   @param xk current state
     #   @param vk current process noise for propagation
     def propagateRK4(self,dt,xk,vk):
@@ -137,3 +137,4 @@ class ukf():
         xk = xk + h6*(k1+2.0*k2+2.0*k3+k4)
         # store
         return xk
+

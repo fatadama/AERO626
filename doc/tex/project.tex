@@ -20,7 +20,7 @@ Five estimation algorithms are considered for the nonlinear sequential estimatio
 
 \subsection{Extended Kalman filter}
 
-The Extended Kalman filter is, by far, the most popular sequential estimation algorithm in the field of guidance, navigation, and control. Simply put, the EKF replaces the linear process and measurement influence matrices in the linear Kalman filter algorithm with the Jacobian of nonlinear governing functions evaluated at an aposteriori state estimate. The assumed prior estimate $\hat{x}(0)$, covariance $P(0)$, and dynamic system are of the following form:
+The Extended Kalman filter is the most popular sequential estimation algorithm in the field of guidance, navigation, and control. Simply put, the EKF replaces the linear process and measurement influence matrices in the linear Kalman filter algorithm with the Jacobian of nonlinear governing functions evaluated at an aposteriori state estimate. The algorithm description is taken from Ref. \cite{cassidis}. The assumed prior estimate $\hat{x}(0)$, covariance $P(0)$, and dynamic system are of the following form:
 
 \begin{align}
 \hat{x}(0) = E[x_0] \\
@@ -52,7 +52,7 @@ The EKF has been shown to work well for a variety of systems, given that the est
 
 The UKF is based on the same idea as the EKF; extend the linear Kalman update to nonlinear systems in an approximate fashion. In the UKF, however, function Jacobians are no longer used; instead, a discrete set of ``sigma points'' are defined and passed through the propagation and update equations. The output points are used to evaluate the system covariances from their definitions.
 
-Define the augmented state vector $x^a$ as follows:
+The algorithm here is repeated from Wan\cite{wan2000}; for a complete algorithmic description including the value of the weights and other algorithm parameters, the reader is encouraged to review this resource, or one of numerous others in the literature. Define the augmented state vector $x^a \ \in \ \mathcal{R}^L$ as follows:
 
 \begin{equation}
 x^a_k = \begin{bmatrix}
@@ -63,7 +63,7 @@ x^x_k \\x^w_k \\x^v_k
 \label{eq:xaug_ukf}
 \end{equation}
 
-In Eq. \ref{eq:xaug_ukf}, $x^x_k$, $x^w_k$, and $x^v_k$ are used as shorthand for the augmented state members associated with the state, process noise, and measurement noise. The $L \times 2L+1$ array of sigma points is defined as follows:
+In Eq. \ref{eq:xaug_ukf}, $x^x_k$, $x^w_k$, and $x^v_k$ are used as shorthand for the augmented state members associated with the state, process noise, and measurement noise. The $L \times 2L+1$ array of sigma points is defined as follows. Note that $\lambda$ is an algorithm parameter.
 
 \begin{equation}
 \chi^a_{k-1} = [\hat{x}^a_{k-1} \ \hat{x}^a_{k-1}\pm \sqrt{(L+\lambda)P_{k-1}^a}]
@@ -73,6 +73,7 @@ Each sigma point is then propagated through the governing nonlinear equation as 
 
 \begin{equation}
 \chi^-_{k}(:,j) = f(\chi^x_{k-1}(:,j),t_{k-1}) + G_k \chi^w_{k-1}(:,j), \ \forall \ j
+\label{eq:ukf_prop}
 \end{equation}
 
 The state and covariance apriori estimates are given as weighted averages of the sigma points:
@@ -86,11 +87,100 @@ In a similar fashion, the update is performed by first passing the propagated si
 
 \begin{equation}
 Y_k(:,j) = h(\chi^{x-}_k(:,j),t_k) + \chi^v_{k-1}(:,j)
+\label{eq:ukf_expectation}
 \end{equation}
 
 The measurement covariance and state-measurement cross-correlation are evaluated as follows:
 
-% TODO insert equation
+\begin{align}
+\hat{y}_k \equiv \sum_{i=1}^{2L+1} W_i^m Y_k(:,i) \\
+P_{yy} \equiv \sum_{i=1}^{2L+1} W_i^c (Y_k(:,i)-\hat{y}_k)(Y_k(:,i)-\hat{y}_k)^T \\
+P_{xy} \equiv \sum_{i=1}^{2L+1} W_i^c (\chi^{x-}_k(:,i)-\hat{x}_k^-)(Y_k(:,i)-\hat{y}_k)^T
+\end{align}
+
+The Kalman update is then performed as follows:
+
+\begin{align}
+K_k \equiv P_{xk} P_{yy}^{-1} \\
+\hat{x}_k = \hat{x}_k^- + K_k(\tilde{y}_k - \hat{y}_k) \\
+P_k = P_k^- - K_kP_{yy}K_k^T
+\label{eq:ukf_end}
+\end{align}
+
+This completes the algorithm description.
+
+\subsection{Sequential importance resampling particle filter}
+
+The essential function of a particle filter is to propagate a set of candidate states forward in time, evaluate the likelihood of a given measurement for each point, and weight the points so that they form a discrete-valued approximation to the true system density function. Repeated applications of the likelihood function tend to reduce the weight associated with most particles to essentially zero, a phenomenon referred to as particle degeneracy. This phenomenon can be overcome in part by judicious application of resampling; sampling new particles from the aposteriori density function.
+
+The SIR algorithm employed in this work is found in Ref. \cite{arulampalam}. The density function is approximated by a set of weights $\omega^{i}_k$ and points $x^{i}_k$ as follows:
+
+\begin{equation}
+p_k(x) \approx \sum_{i=1}^{N_s} \omega^{i}_k \delta(x-x^{i}_k)
+\end{equation}
+
+For the particular dynamic system under consideration, the SIR algorithm may be written as follows:
+
+\begin{enumerate}
+\item Draw process noise values as $w^i_{k-1} \sim N(0,Q_k)$, then propagate each particle according to:
+\begin{equation}
+x_k^{i} = f(x_{k-1}^{i+},t_{k-1}) + G_k w^i_{k-1}
+\label{eq:pf_eqom}
+\end{equation}
+\item Update the weights according to:
+\begin{align}
+v_k^i \equiv \tilde{y}_k - h(x_k^i,t_k) \\
+\omega_k^i = p(v_k^i)
+\end{align}
+\item Normalize the weights to sum to one
+\item Resample all points
+\end{enumerate}
+
+The resampling algorithm is expanded below:
+
+\begin{itemize}
+\item Initialize the CDF as: $c_1 = 0$
+\item For $i = 2:N_s$
+	\begin{itemize}
+	\item Construct the CDF according to: $c_i = c_{i-1} + \omega_k^i$
+	\end{itemize}
+\item $i = 1$
+\item Draw a starting point: $u_1 \sim \mathcal{U}[0,N_s^{-1}]$
+\item For $j = 1:N_s$
+\begin{itemize}
+	\item Move along the CDF: $u_j = u_1 + N_s^{-1}(j-1)$
+	\item While $u_j > c_i$
+		\begin{itemize}
+		\item $i = i+1$
+		\end{itemize}
+	\item Assign sample: $x_k^{j+} = x_k^i$
+	\item Assign weight: $\omega_k^{j+} = N_s^{-1}$
+\end{itemize}
+\end{itemize}
+
+The new particles $x_k^{j+}$ are used in the propagation step of Eq. \ref{eq:pf_eqom}. The expectation and covariance at any time may be computed from the discrete PDF as follows:
+
+\begin{align}
+E[x_k] \equiv \mu_k \approx \sum_{i=1}^{N_s} \omega^{i}_k x^{i}_k \\
+E[(x_k-\mu_k)(x_k-\mu_k)^T] \approx \sum_{i=1}^{N_s} \omega^{i}_k (x^i_k - \mu_k)(x^i_k - \mu_k)^T
+\end{align}
+
+\subsection{Ensemble Kalman Filter}
+
+The Ensemble Kalman Filter attempts to address two limitations associated with the EKF: (1) the need to store and propagate a covariance matrix in time; (2) the approximation of the nonlinear system by the linearized system \cite{evensen}. The ENKF is a particle method; it relies on the propagation of a selection of points with random sampling to approximate the effects of process and measurement noise. Instead of using a weighted approximation to the PDF, the ENKF performs a Kalman update on each point in the ensemble, and the resulting set of points are treated in a Monte Carlo sense as approximating the true system PDF. The ENKF uses the same basic algorithm as the UKF, except the set of sigma points is replaced by an ensemble of points with associated random process and measurement noise.
+
+Let the ensemble of points at time $t_k$ be in the array $\gamma_k \ \in \ \mathcal{R}^{n \times N_s}$, where $n$ is the dimension of the state and $N_s$ is the ensemble size. An augmented ensemble with the process and measurement noise may be assembled as follows:
+
+\begin{equation}
+\gamma^a_k = \begin{bmatrix}
+\gamma_k \\
+w^{(1)}_k & w^{(2)}_k & \dots & w^{(N_s)}_k \\
+v^{(1)}_k & v^{(2)}_k & \dots & v^{(N_s)}_k
+\end{bmatrix}
+\label{eq:enkf_augmented}
+\end{equation}
+
+In Eq. \ref{eq:enkf_augmented}, the process and measurement noise members are drawn from the underlying distributions (which are assumed zero-mean Gaussian here, but need not be in general). The UKF propagation and update equations of Eq. \ref{eq:ukf_prop}, \ref{eq:ukf_expectation}-\ref{eq:ukf_end} may then be used with one additional change. The mean weights $W^m_i$ and covariance weights $W^c_i$ are replaced by the constants used in the definitions of sample mean and covariance; $W^m_i \leftarrow \frac{1}{N_s}$, $W^c_i \leftarrow \frac{1}{N_s-1}$.
 
 \subsection{Gaussian mixture models}
 
@@ -147,7 +237,7 @@ Eq. \ref{eq:cov_gmm} represents an underconstrained system. By specifying that t
 
 One practical note: astute readers will observe that the sum in Eq. \ref{eq:P0_gmm} with equal weights matches the statistical definition of the covariance (to within a small bias in the weights). Depending on the number of initial points and their distribution, the value of $P_{0}$ may not satisfy the requirement of positive definiteness for the covariance matrix. To ensure positive definiteness, $P_{0}$ is processed additionally by taking the absolute value of all members, and setting the diagonal elements to zero, to ensure the determinant remains positive.
 
-The initial weights are initially set equal to one another, $\alpha_{ki} = \chi_k^{-1}$. It should be observed that for a unimodal near-Gaussian system, the algorithm will collapse to the Extended Kalman filter after a few iterations, with the means all concentrated near a single point. The GMM is intended to address the case of bimodality in the propagated density function, and is of most interest as an alternative to the PF and ENKF for handling multi-modality of the density.
+The initial weights are initially set equal to one another, $\alpha_{ki} = \chi_k^{-1}$. It should be observed that for a unimodal near-Gaussian system, the algorithm will collapse to the Extended Kalman filter after a few iterations, with the means all concentrated near a single point. (This assumes that the initial means are all within the region of convergence for the EKF algorithm.) In the dynamics considered in the following section, the GMM is intended to address the case of bimodality in the propagated density function. The GMM is of most interest as an alternative to the PF and ENKF for handling multi-modality of the density.
 
 \section{Governing equation and bifurcation time}
 
@@ -170,7 +260,7 @@ System measurements occur at discrete times $t_k = kT$. The total set of paramet
 
 \begin{itemize}
 \item $\epsilon = 0.01$
-\item $a_0 = 2.0$
+\item $a_0 = 0.5$
 \item $\omega_t = 1.25$
 \item $q = 1.0$
 \item $r = 1.0$
@@ -191,14 +281,16 @@ One feature of interest for the system is its equilibria: the unforced system ha
 
 Bifurcation time is analyzed with no forcing ($a_0 = 0$) by performing simulating a number of points from a normal distribution about the origin, then propagating forward in time. Results are plotted, and the bifurcation time estimated qualitatively. Fig. \ref{fig:bifurcation_animate_1} shows the development of the system bifurcation from its initial condition. The unforced motion is also shown by plotting the system after 9.5 seconds of development. From these plots, it is clear that bifurcation appears qualitatively on the order of a second or so. Therefore, the sample time of $10.0$ seconds is used to consider the bifurcated system in later study.
 
-\begin{figure}[tb!]
+\begin{figure}[p!]
 \centering
-\includegraphics[height=0.3\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f1_t0.010010}.png}
-\includegraphics[height=0.3\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f151_t1.511512}.png}
-\includegraphics[height=0.3\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f951_t9.519520}.png}
-\caption{Figures showing the development of the distribution. Left: time hsitory of position. Center: time history of speed. Right: phase portrait of system, with 'x' used to indicate the current condition of the state. Top: Initially Gaussian points with position variance $0.1$ and speed variance $1.0$. Middle: Condition of the sustem after 1.5 seconds; clear separation between points in the phase portratit is visible. Bottom: Long-term development of the system after 9.5 seconds, showing the unforced motion of points.}
+\includegraphics[height=0.275\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f1}.png}
+\includegraphics[height=0.275\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f151}.png}
+\includegraphics[height=0.275\textheight]{{../../challenge_problem/prelim_analysis/animate/anim_f401}.png}
+\caption{Figures showing the development of the phase portrait of the distribution. 'x' is used to indicate the current condition of the state with the contours tracing the path history of the phase portrait. Axis labels: $X1$ indicates the position, $X2$ the speed. Top: Initially Gaussian points with position variance $2.0$ and speed variance $1.0$. Middle: Condition of the sustem after 1.5 seconds; clear separation between points in the phase portrait is visible. Bottom: Development of the system after several seconds, showing separation of points.}
 \label{fig:bifurcation_animate_1}
 \end{figure}
+
+It is clear that so long as position is measured, at least one state of the bimodal system can be estimated in a stable fashion. It is of greater interest to consider the case where measurements provide limited or ambiguous information about the states under consideration. Therefore, in the bimodality study, measurements of the form $y = x_1^2$ are considered. To exaggerate the effect of the bimodality on the system, the process and measurement noise are each reduced by a factor of 100; this ensures that the system estimates tend to cluster about two candidate solution states, rather than spreading over a domain unimodally.
 
 %A test for multimodality is performed using smoothed kernel density estimates (KDEs). The procedure is outlined briefly in the following subsection.
 
@@ -241,6 +333,255 @@ The test procedure is summarized as follows:
 	\end{enumerate}
 \end{enumerate}
 \end{enumerate}
+
+\section{Simulation}
+
+The estimation algorithms are evaluated in Monte Carlo simulation. Two categories of simulation are conducted: (1) a typical sequential filtering problem, referred to as the \textbf{standard case}, with relatively frequent measurements and approximately unimodal state distributions; (2) a case where significant bifurcation occurs due to the system dynamics, with infrequent, ambiguous measurements. The latter is referred to as the \textbf{bifurcation case}. All five algorithms are tested in the first scenario; in the second scenario, only the ENKF, SIR PF, and GMM are considered (that is, those models that have the ability to model non-unimodal distributions).
+
+In the standard case, forcing functions of white noise only, cosine forcing only, and cosine forcing with white noise are considered. In addition, sample rates varying from 100 Hz to 1 Hz are considered. This broad sweep of parameters helps highlight the performance differences between the various filters.
+
+In the bifurcation case, the process and measurement noise levels are reduced, and only the case of Gaussian white noise is considered. The sample period is increased to five seconds, allowing the system pdf more than enough time to bifurcate. The modified system parameters are listed below for completeness:
+\begin{itemize}
+\item $a_0 = 0.0$
+\item $q = 0.01$
+\item $r = 0.01$
+\item $T = 5.0$
+\end{itemize}
+
+
+\section{Results}
+
+\subsection{Standard case}
+
+For the standard case, results are broken into three sections, each corresponding to a different sample rate. The sample rates used are $0.1$, $0.01$, and $1.0$ seconds, corresponding to medium, fast, and slow sample rates. For each sample rate, 100 Monte Carlo simulations of 30 seconds each are performed for three different cases of unmodelled forcing: (1) Gaussian white noise, (2) cosine forcing, (3) Gaussian white noise and cosine forcing.
+
+For the SIR PF, 200 particles are used in each filter. For the ENKF, ensembles of size 100 are used in the non-adaptive case. Filter process noise terms were tuned for each filter and forcing case individually. It should be noted that the distinction is made between the \textbf{filter process noise} and the \textbf{simulation process noise}, the former being a tuning parameter for filter performance, and the latter being a global setting that changes the behavior of the underlying system.
+
+Two performance metrics are used. The first is mean squared error (MSE), computed for the position states $x_1$ and speed states $x_2$ individually as follows:
+
+\begin{equation}
+\mathrm{MSE}_i = \frac{1}{N} \sum_{j=1}^N (\hat{x}_j(i) - x_j(i))^2
+\end{equation}
+
+MSE is computed across all times and all Monte Carlo simulations as an average metric of accuracy. To evaluate the consistency of each filter, the normalized expectation of the error squared (NEES) is employed. NEES is computed at a given simulation time as follows:
+
+\begin{equation}
+\mathrm{NEES}(t_k) = (\hat{x}_k-x_k)^T P_k^{-1} (\hat{x}_k-x_k)
+\end{equation}
+
+NEES is employed in two ways: first, the average NEES across the Monte Carlo runs at each simulation time is plotted as a function of time; second, 95\% confidence bounds for the NEES are computed as in Ref. \cite{neesPaper}. The 95\% confidence bounds are used to evaluate the fraction of times at which the mean NEES exceeded the 95\% bounds (indicating overconfidence of the estimate) and fell below the 95\% bounds (indicating conservatism of the estimate). This process yields two scalars that indicate the fraction of time steps at which a given filter was overconfident or overly conservative.
+
+\subsubsection{Medium sample rate}
+
+Performance for the $0.1$ second sample period case are collected in Tables \ref{table:compare_case_1_sample_0}-\ref{table:compare_case_3_sample_0} and Figs. \ref{fig:nees_01_medium}-\ref{fig:nees_11_medium}. It is noted first that the MSE accuracy of the ``Kalman'' filters, the EKF, UKF, and ENKF, is very similar in each case, typically differing only in the second decimal place. For the case of purely Gaussian forcing, the UKF performs best, followed by the ENKF and EKF; however, the actual difference in errors is probably too small to be significant in application. For the case of cosine forcing, the EKF has lowest errors, followed by the ENKF and UKF; again, the difference in the three is quite small. With combined forcing, the EKF performs best, followed by the UKF and ENKF.
+
+In each case, it should be noted that the EKF estimates are extremely conservative compared to the UKF and ENKF. Extensive tuning of the filter process noise term allowed the EKF to achieve essentially identical performance at this $T_s$, but produces conservative error bounds that may or may not be acceptable in practice. The UKF is much less conservative in the white noise forcing case. For the cosine forcing and mixed forcing cases, the UKF is conservative at some times and optimistic at others. This is a product of using a white-noise forcing model to capture the effects of a cosine forcing term. To achieve good error performance, the filter's process noise term must be set so that it is conservative when the cosine term is small, and optimistic when the cosine term is near its maximum. The ENKF suffers from the same limitation in using a white-noise forcing model to capture a cosine forcing term; however, the extra flexibility of the ENKF in capturing nonlinear effects limits the extrema of conservatism and optimism.
+
+Performance for the SIR PF in terms of MSE is typically worse than that of the other filters. However, it is noted that the fraction of conservative and optimistic points for the SIR is typically lower than for the other filters, especially in the cosine forcing cases. That indicates something about the PF produces less precise, yet more consistent estimates. Perhaps the process noise and number of particles has a ``shotgun'' effect on the propagation stage; that is, the filter propagation produces a broad set of candidate states, which are more likely to have some particles in the correct states to capture the effects of the nonlinear forcing. The filter covariance settings used are considered to be conservatively large. However, at smaller filter covariances, the particle degeneracy problem became much more significant and often led to zero weights after a single propagation step. Improved  accuracy might be achieved with the SIR with the conservative covariance settings and larger numbers of particles.
+
+It is noted that the GMM tracks the EKF performance in each case, but with slightly larger errors. This is to be expected; since Monte Carlo initialization of the GMM is used with the standard EKF update for each Gaussian in the mixture, the GMM essentially converges to the EKF within a few updates. The GMM has extra covariance built into the initialization step, which causes the slightly larger overall MSEs.
+
+Figs. \ref{fig:nees_01_medium}-\ref{fig:nees_11_medium} reflect the underlying differences between the different forcing environments. Performance for the tuned filters in any single forcing case is qualitatively similar; for instance, in Fig. \ref{fig:nees_01_medium}, each filter starts at a large initial mean NEES, due to the large initial covariance, and then decreases within about 10 seconds toward an apparent steady-state final value, with some oscillation. The UKF history is little ``tighter'' than the EKF, reflecting the improved consistency of the UKF. In Figs. \ref{fig:nees_10_medium} and \ref{fig:nees_11_medium}, on the other hand, the time histories are highly oscillatory, with a period reflecting that of the driving cosine forcing. These figures should make clear the limitation of using a white-noise forcing model to capture a nonlinear forcing term; the best-tuned filters have oscillate between conservative and optimistic.
+
+%************************************************
+% Performance table at Ts =  0.100000 with namebit 1
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Filter & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\
+\hline
+EKF &  0.09895 &   0.1252 &   0.7043 &        0 \\
+\hline
+ENKF &   0.0946 &   0.1206 &   0.5548 &        0 \\
+\hline
+AENKF &   0.1488 &   0.2547 &   0.2871 &        0 \\
+\hline
+GMM &   0.1305 &    0.172 &   0.7841 & 0.003322 \\
+\hline
+UKF &  0.09088 &   0.1169 &   0.4385 &  0.03655 \\
+\hline
+SIR &   0.1634 &   0.2738 &   0.1584 &   0.1188 \\
+\hline
+\end{tabular}
+\caption{Performance metrics comparison of all filters with Ts = 0.10 sec and Gaussian forcing term}
+\label{table:compare_case_1_sample_0}
+\end{table}
+
+
+%************************************************
+% Performance table at Ts =  0.100000 with namebit 2
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Filter & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\
+\hline
+EKF &   0.1444 &   0.2846 &   0.6977 &        0 \\
+\hline
+ENKF &   0.1455 &   0.2856 &   0.5249 &        0 \\
+\hline
+AENKF &   0.3373 &    1.936 &   0.0396 &   0.1188 \\
+\hline
+GMM &   0.1521 &   0.3213 &    0.206 &    0.113 \\
+\hline
+UKF &   0.1468 &   0.2898 &   0.1528 &    0.289 \\
+\hline
+SIR &   0.2694 &    1.171 &   0.0396 &        0 \\
+\hline
+\end{tabular}
+\caption{Performance metrics comparison of all filters with Ts = 0.10 sec and cosine forcing term}
+\label{table:compare_case_2_sample_0}
+\end{table}
+
+
+%************************************************
+% Performance table at Ts =  0.100000 with namebit 3
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Filter & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\
+\hline
+EKF &   0.1381 &    0.277 &   0.7475 &        0 \\
+\hline
+ENKF &   0.1459 &    0.293 &  0.04319 & 0.003322 \\
+\hline
+AENKF &    4.459 &    13.75 &  0.01329 &   0.6545 \\
+\hline
+GMM &   0.1467 &   0.3121 &   0.2193 &  0.08638 \\
+\hline
+UKF &   0.1402 &   0.2813 &   0.1694 &   0.2691 \\
+\hline
+SIR &   0.1599 &   0.3126 &  0.04651 &   0.1196 \\
+\hline
+\end{tabular}
+\caption{Performance metrics comparison of all filters with Ts = 0.10 sec and Gaussian and cosine forcing terms}
+\label{table:compare_case_3_sample_0}
+\end{table}
+
+\begin{figure}[p!]
+\centering
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_ekf_sims_01_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_enkf_sims_01_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_aenkf_sims_01_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_gmm_sims_01_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_ukf_sims_01_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_sir_200_sims_01_medium}
+\caption{Mean NEES time histories for the pure white noise forcing cases.}
+\label{fig:nees_01_medium}
+\end{figure}
+
+\begin{figure}[p!]
+\centering
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_ekf_sims_10_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_enkf_sims_10_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_aenkf_sims_10_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_gmm_sims_10_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_ukf_sims_10_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_sir_200_sims_10_medium}
+\caption{Mean NEES time histories for the pure cosine forcing cases.}
+\label{fig:nees_10_medium}
+\end{figure}
+
+\begin{figure}[p!]
+\centering
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_ekf_sims_11_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_enkf_sims_11_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_aenkf_sims_11_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_gmm_sims_11_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_ukf_sims_11_medium}
+\includegraphics[width=0.49\textwidth]{../../challenge_problem/trials/nees_sir_200_sims_11_medium}
+\caption{Mean NEES time histories for the pure cosine forcing cases.}
+\label{fig:nees_11_medium}
+\end{figure}
+
+\subsubsection{Slow sample rate}
+
+With the sample period of $T_s = 1.0$ seconds, the filters begin to experience the effects of bifurcation and large covariance growth during the propagation step; however, the non-ambiguous measurements enable the filters to remain stable, and any bimodal effects are largely manageable. 
+
+For the case of purely Gaussian forcing, best performance in terms of MSE is obtained with the SIR, followed by the ENKF, EKF, GMM, and UKF.  In terms of consistency, all the filters are quite conservative, with the GMM having probably the most consistency performance. This reflects the effect of the long propagation time and underlying system bimodality on these unimodal filters. Of note, the lowest MSE seems to correlate with the greatest degree of conservatism in the results.
+
+For the case of pure cosine forcing, lowest MSE is found with the ENFK, followed by the EKF, GMM, UKF, then SIR. The ENKF is extremely conservative again; the EKF, UKF, and GMM also have notable conservative and optimistic fractions. As in the medium sample rate, the SIR has higher MSE but apparently better consistency compared to the other filters.
+
+For the case of mixed Gaussian and cosine forcing, lowest MSE is achieved with the ENKF, followed by the EKF, GMM, SIR, and UKF. Of these, the EKF and GMM are most conservative. The ENKF is the most optimistic, despite its relatively low errors. As might be expected from previous trials, the EKF tends to be conservative, the UKF switches between conservative and optimistic, and the SIR has good consistency.
+
+%************************************************
+% Performance table at Ts =  1.000000 with namebit 1
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Filter & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\
+\hline
+EKF &   0.6558 &   0.9599 &   0.3548 &  0.03226 \\
+\hline
+ENKF &   0.6215 &    0.822 &   0.4516 &        0 \\
+\hline
+AENKF &   0.6724 &    1.223 &   0.3636 &   0.1818 \\
+\hline
+GMM &   0.6822 &    1.042 &   0.1935 &  0.09677 \\
+\hline
+UKF &   0.7445 &    1.094 &   0.3871 &  0.06452 \\
+\hline
+SIR &   0.6023 &   0.7245 &   0.4516 &        0 \\
+\hline
+\end{tabular}
+\caption{Performance metrics comparison of all filters with Ts = 1.00 sec and Gaussian forcing term}
+\label{table:compare_case_1_sample_2}
+\end{table}
+
+
+%************************************************
+% Performance table at Ts =  1.000000 with namebit 2
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Filter & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\
+\hline
+EKF &   0.5854 &    1.104 &   0.2903 &  0.03226 \\
+\hline
+ENKF &   0.5671 &   0.9629 &   0.7419 &        0 \\
+\hline
+AENKF &   0.7642 &     2.19 &        0 &   0.5455 \\
+\hline
+GMM &   0.6128 &    1.219 &   0.2258 &        0 \\
+\hline
+UKF &   0.6316 &    1.128 &   0.2903 &   0.1613 \\
+\hline
+SIR &   0.7376 &    2.383 &        0 &  0.09091 \\
+\hline
+\end{tabular}
+\caption{Performance metrics comparison of all filters with Ts = 1.00 sec and cosine forcing term}
+\label{table:compare_case_2_sample_2}
+\end{table}
+
+
+%************************************************
+% Performance table at Ts =  1.000000 with namebit 3
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Filter & $\mathrm{MSE}_1$ & $\mathrm{MSE}_2$ & Conservative fraction & Optimistic fraction \\
+\hline
+EKF &   0.6076 &    1.077 &   0.2258 &  0.06452 \\
+\hline
+ENKF &   0.5489 &   0.8637 &  0.03226 &   0.3226 \\
+\hline
+AENKF &   0.6698 &    1.321 &   0.1613 &        0 \\
+\hline
+GMM &   0.6394 &    1.195 &   0.5484 &        0 \\
+\hline
+UKF &    0.661 &    1.116 &   0.1613 &   0.2258 \\
+\hline
+SIR &   0.6756 &    1.035 &   0.1613 &  0.03226 \\
+\hline
+\end{tabular}
+\caption{Performance metrics comparison of all filters with Ts = 1.00 sec and Gaussian and cosine forcing terms}
+\label{table:compare_case_3_sample_2}
+\end{table}
 
 \bibliographystyle{plain}
 \bibliography{ref}

@@ -25,11 +25,23 @@ Tim Bailey, Juan Nieto, Jose Guivant, Michael Stevens, and Eduardo Nebot.
 \newblock In {\em Intelligent Robots and Systems, 2006 IEEE/RSJ International
   Conference on}, pages 3562--3568. IEEE, 2006.
 
+\bibitem{crassidis}
+John~L Crassidis and John~L Junkins.
+\newblock {\em Optimal estimation of dynamic systems}.
+\newblock CRC press, 2011.
+
 \bibitem{evensen}
 Geir Evensen.
 \newblock The ensemble kalman filter for combined state and parameter
   estimation.
 \newblock {\em Control Systems, IEEE}, 29(3):83--104, 2009.
+
+\bibitem{mackay2003}
+David MacKay.
+\newblock Information theory, inference, and learning algorithms, September
+  2003.
+\newblock
+  \url{http://www.inference.phy.cam.ac.uk/mackay/itprnn/ps/284.292.pdf}.
 
 \bibitem{silverman}
 B.W. Silverman.

@@ -379,48 +379,6 @@ Bifurcation time is analyzed with no forcing ($a_0 = 0$) by performing simulatin
 
 It is clear that so long as position is measured, at least one state of the bimodal system can be estimated in a stable fashion. It is of greater interest to consider the case where measurements provide limited or ambiguous information about the states under consideration. Therefore, in the bimodality study, measurements of the form $y = x_1^2$ are considered. To exaggerate the effect of the bimodality on the system, the process and measurement noise are each reduced by a factor of 100; this ensures that the system estimates tend to cluster about two candidate solution states, rather than spreading over a domain unimodally.
 
-%A test for multimodality is performed using smoothed kernel density estimates (KDEs). The procedure is outlined briefly in the following subsection.
-
-\subsection{Test for multimodality}
-
-The test for multimodality is Silverman's\cite{silverman}; for implementation, reference is also made to \cite{adereth}. The KDE is a method of nonparametric estimation of a density function. The KDE for a particular kernel $K(.)$ is defined for samples $\chi = \{ X_1,X_2,...X_n \}$ as follows:
-
-\begin{equation}
-\hat{f}(x;h) = \frac{1}{nh} \sum_{i=1}^{n} K(\frac{x-X_i}{h})
-\label{eq:kde_def}
-\end{equation}
-
-In Eq. \ref{eq:kde_def}, $h$ is a smoothing parameter. The kernel function in general may take different forms, but the Silverman test uses a univariate normal distribution. For a given data set $\chi$, the number of modes in the data (determined by the number of local extrema) is monotonically decreasing with the value of the smoothing parameter, according to Silverman\cite{silverman}. So, a simple binary search can be used to determine the critical smoothing parameter $h_{crit}$ at which the KDE has a particular number of modes. The objective of the test is to if the distribution of the position and velocity states at a fixed time is unimodal; therefore, the smoothing parameter for which the KDE has only one extrema is sought.
-
-One additional procedure is used in the test; smoothed bootstrap sampling. The test works by evaluating the significance of the null hypothesis that the underlying distribution is unimodal. If the significance is too small, the null hypothesis is rejected, and the distribution is assumed to be multimodal. Smoothed bootstrap sampling is used to evaluate the significance level. Bootstrap samples $X_i^*$ are drawn from the original data set $\chi = \{ X_1,X_2,...X_n \}$ as follows:
-
-\begin{equation}
-X_i^* = \frac{X_{j(i)} + h\epsilon_i}{\sqrt{1+h^2/\sigma^2}}, i \in [1,\dots,n]
-\label{eq:smoothedBootstrap}
-\end{equation}
-
-In Eq. \ref{eq:smoothedBootstrap}, the sample $X_{j(i)}$ is selected uniformly with replacement. $\sigma$ is the sample standard deviation of the data. $\epsilon_i$ is a normally distributed random variable with uniform variance. The smoothed bootstrap samples are used to evaluate the null hypothesis that the distribution is unimodal with a critical KDE parameter $h_{crit}$; $N_b$ sets are drawn using smoothed bootstrap sampling, and the number of maxima of the resulting KDE with $h_{crit}$ are tabulated. The fraction of sets with only one maximum is taken to be the significance level of the null hypothesis.
-
-The test procedure is summarized as follows:
-
-\begin{enumerate}
-\item Simulate $N_p$ Monte Carlo simulations for a fixed time
-\item For each time $t^*$ in the simulation outputs:
-\begin{enumerate}
-	\item Collect the $N_p$ state values at $t = t^*$
-	\item Compute the critical smoothing parameter $h_{crit}$ for which the KDE is unimodal
-	\item Evaluate the probability that the distribution has one mode
-	\begin{enumerate}
-		\item Perform smoothed bootstrap sampling from the critical KDE $N_b$ times
-		\item For each of the $N_b$ samples:
-		\begin{enumerate}
-			\item Evaluate the KDE with the critical smoothing parameter for the current sample. Record the number of modes.
-		\end{enumerate}
-		\item The fraction of unimodal KDEs is taken as the P-value for the test.	
-	\end{enumerate}
-\end{enumerate}
-\end{enumerate}
-
 \section{Simulation description}
 
 The estimation algorithms are evaluated in Monte Carlo simulation. Two categories of simulation are conducted: (1) a typical sequential filtering problem, referred to as the \textbf{standard case}, with relatively frequent measurements and approximately unimodal state distributions; (2) a case where significant bifurcation occurs due to the system dynamics, with infrequent, ambiguous measurements. The latter is referred to as the \textbf{bifurcation case}. All five algorithms are tested in the first scenario; in the second scenario, only the ENKF, SIR PF, and GMM are considered (that is, those models that have the ability to model non-unimodal distributions).

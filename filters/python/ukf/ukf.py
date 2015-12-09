@@ -78,7 +78,10 @@ class ukf():
         Paug[(self.n+self.nv):(self.n+self.nv+ny),(self.n+self.nv):(self.n+self.nv+ny)] = Rk.copy()
 
         # compute cholesky decomposition of Paug
-        Psq = np.linalg.cholesky(Paug)
+        try:
+            Psq = np.linalg.cholesky(Paug)
+        except np.linalg.linalg.LinAlgError:
+            raise np.linalg.linalg.LinAlgError('Matrix square root failed, singular covariance?')
         # compute the sigma points
         XAUG = np.zeros((L,2*L+1))
         XAUG[:,0] = xaug.copy()
@@ -121,20 +124,35 @@ class ukf():
         self.Pk = self.Pk-np.dot(Kk,Pxy.transpose())
     ## propagateRK4(self,dt,xk,vk) Propagate a given state xk with constant process noise vk over an interval dt.
     #
-    # Uses a single runge-kutta timestep without adaptation. If you need to propagate for long periods of time without measurements, this implementation will not be suitable
+    # Uses a runge-kutta timestep with fixed time step. No error checking, may not converge
     #   @param dt interval over which to propagate
     #   @param xk current state
     #   @param vk current process noise for propagation
-    def propagateRK4(self,dt,xk,vk):
-        # one step RK4
-        h6 = 1.0/6.0
+    #   @param dtout minimum step size for integration - defaults to 0.01
+    def propagateRK4(self,dt,xk,vk,dtout=None):
+        if dtout == None:
+            dtout = 0.01
+        # vector of times over which to integrate
+        nu = int(dt/dtout)
+        dts = [dtout]
+        for k in range(1,nu):
+            dts.append(dtout)
+        rem = dt - dtout*nu
+        if rem > dt*1.0e-4:
+            dts.append(rem)
+            nu = nu + 1
+        for kouter in range(nu):
+            # one step RK4
+            h6 = 1.0/6.0
 
-        k1 = dt*self.propagateFunction(xk,self.t,self.u,vk)
-        k2 = dt*self.propagateFunction(xk+0.5*k1,self.t+0.5*dt,self.u,vk)
-        k3 = dt*self.propagateFunction(xk+0.5*k2,self.t+0.5*dt,self.u,vk)
-        k4 = dt*self.propagateFunction(xk+k3,self.t+dt,self.u,vk)
-        # update the state
-        xk = xk + h6*(k1+2.0*k2+2.0*k3+k4)
+            k1 = dts[kouter]*self.propagateFunction(xk,self.t,self.u,vk)
+            k2 = dts[kouter]*self.propagateFunction(xk+0.5*k1,self.t+0.5*dts[kouter],self.u,vk)
+            k3 = dts[kouter]*self.propagateFunction(xk+0.5*k2,self.t+0.5*dts[kouter],self.u,vk)
+            k4 = dts[kouter]*self.propagateFunction(xk+k3,self.t+dts[kouter],self.u,vk)
+            # update the state
+            xk = xk + h6*(k1+2.0*k2+2.0*k3+k4)
+            # update the time
+            self.t = self.t + dts[kouter]
         # store
         return xk
 

@@ -18,6 +18,8 @@ import ukf
 sys.path.append('../sim_data')
 import data_loader
 
+import trials_processing
+
 def eqom_ukf(x,t,u,v):
 	return cp_dynamics.eqom_stoch(x,t,v)
 
@@ -69,8 +71,8 @@ def ukf_test(dt,tf,mux0,P0,YK,Qk,Rk):
 
 def main():
 	global nameBit
-	names = ['sims_01_fast']# test case
-	#names = ['sims_11_slow','sims_11_medium','sims_11_fast']
+	names = ['sims_01_medium']# test case
+	#names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast','sims_11_slow','sims_11_medium','sims_11_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
@@ -78,24 +80,29 @@ def main():
 		nameBit = int(nameNow[5:7],2)
 		# parse the name
 		if nameBit == 1:
-			# tuned noise levels for the UKF with white noise forcing
-			Qk = np.array([[1.0*dt]])
 			Rk = np.array([[1.0]])
-		if nameBit == 2:
-			# tuned noise levels for the UKF with cosine forcing
-			if dt > .9:# slow sampling
-				Qk = np.array([[3.16]])
-			elif dt > 0.09:# medium sampling
-				Qk = np.array([[25.0]])
-			else:# fast sampling
-				Qk = np.array([[160.0]])
-			Rk = np.array([[1.0]])
-		if nameBit == 3:
-			# tuned noise levels for the UKF with cosine forcing and white noise
+			# tuned UKF with white noise forcing
 			if dt > .9:# slow sampling
 				Qk = np.array([[1.0]])
 			elif dt > 0.09:# medium sampling
-				Qk = np.array([[3.16]])
+				Qk = np.array([[0.01]])
+			else:# fast sampling
+				Qk = np.array([[0.00316]])
+		if nameBit == 2:
+			# tuned noise levels for the UKF with cosine forcing
+			if dt > .9:# slow sampling
+				Qk = np.array([[1.0]])
+			elif dt > 0.09:# medium sampling
+				Qk = np.array([[1.5]])
+			else:# fast sampling
+				Qk = np.array([[20.0]])
+			Rk = np.array([[1.0]])
+		if nameBit == 3:
+			# noise levels for the UKF with cosine forcing and white noise
+			if dt > .9:# slow sampling
+				Qk = np.array([[1.0]])
+			elif dt > 0.09:# medium sampling
+				Qk = np.array([[1.5]])
 			else:# fast sampling
 				Qk = np.array([[16.0]])
 			Rk = np.array([[1.0]])
@@ -156,6 +163,8 @@ def main():
 			ax[0].grid()
 			fig2.show()
 
+		trials_processing.errorParsing(e_sims,nees_history,'ukf',nameNow)
+
 		mse_tot = np.mean(np.power(e_sims,2.0),axis=0)
 		print("mse_tot: %f,%f" % (mse_tot[0],mse_tot[1]))
 		
@@ -215,7 +224,6 @@ def main():
 	raw_input("Return to quit")
 
 	print("Leaving ukf_trials")
-
 	return
 
 if __name__ == "__main__":

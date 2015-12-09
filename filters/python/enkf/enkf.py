@@ -25,6 +25,78 @@ def gaussianNormalPdf(x,mu,P):
 	p = math.exp(-0.5*dp)*dt
 	return p
 
+## Algorithm for clustering into 1 or 2 modes. Uses the measurement likelihood as the criterion for selecting 1 or 2.
+# @param[in] xk [p x N] numpy array of N points in p dimensions
+# @param[in] ym d-length numpy vector of d-dimensional measurement
+# @param[in] Rk [d*d] numpy array of the measurement covariance
+# @param[in] yk [d*N] numpy array of measurement expectations with no noise
+def clusterConvergence2ModesL(xk,ym,Rk,yk):
+	Np = xk.shape[1]
+	p = xk.shape[0]
+	d = ym.shape[0]
+	# evaluate the unimodal fit
+	# compute the mean
+	mu1 = np.mean(xk,axis=1)
+	# compute the covariance
+	coef = 1.0/(float(Np)-1.0)
+	Pxx = np.zeros((2,2))
+	for k in range(Np):
+		Pxx = Pxx + coef*np.outer(xk[:,k]-mu1,xk[:,k]-mu1)
+	Ly1 = np.zeros(Np)
+	for k in range(Np):
+		yexp = yk[:,k]
+		# compute the PDF of y given xk[:,k]
+		pyx = gaussianNormalPdf(ym-yexp,np.zeros(d),Rk)
+		# compute the PDF of xk[:,k]
+		px = gaussianNormalPdf(xk[:,k],mu1,Pxx)
+		Ly1[k] = pyx*px
+	# evaluate the bimodal fit
+	Ly2 = np.zeros(Np)
+	Pxx2 = np.zeros((2,2,2))
+	mux2 = np.zeros((2,2))
+	(idxk,mui) = kmeans.kmeans(xk.transpose(),2)
+	for jk in range(2):
+		idx = np.nonzero(idxk==jk)
+		idx = idx[0]
+		# compute the covariance for the jkth mode
+		N2 = len(idx)
+		# error checking to prevent single-particle clusters, which don't make sense and break the covariance computation
+		if N2 == 1:
+			# set Ly2 to zero & break
+			Ly2 = np.zeros(Np)
+			break
+		coef = 1.0/(float(N2)-1.0)
+		mu2 = np.mean(xk[:,idx],axis=1)
+		mux2[jk,:] = mu2
+		Px2 = np.zeros((2,2))
+		for k in idx:
+			Px2 = Px2 + coef*np.outer(xk[:,k]-mu2,xk[:,k]-mu2)
+		Pxx2[jk,:,:] = Px2.copy()
+		for k in idx:
+			yexp = yk[:,k]
+			# compute the PDF of y given xk[:,k]
+			pyx = gaussianNormalPdf(ym-yexp,np.zeros(d),Rk)
+			# compute the PDF of xk[:,k]
+			px1 = gaussianNormalPdf(xk[:,k],mu2,Px2)
+			Ly2[k] = pyx*px
+	print("L1 = %g, L2 = %g" % (Ly1.max(),Ly2.max()) )
+	if not (Ly2.max() > Ly1.max()):
+		idxk = np.zeros(Np)
+		#mui = np.mean(xk,axis=1).transpose()
+		return(1,idxk,mu1,Pxx)
+	return(2,idxk,mux2,Pxx2)
+	'''
+	# use this to evaluate assuming each ensemble has membership in both clusters, as in a GMM... this will probably always choose one mode
+	for k in range(Np):
+		yexp = outputFunction(xk[:,k])
+		# compute the PDF of y given xk[:,k]
+		pyx = gaussianNormalPdf(ym-yexp,np.zeros(p),Rk)
+		# compute the PDF of xk[:,k]
+		px1 = gaussianNormalPdf(xk[:,k],mux2[0,:],Pxx2[0,:,:])
+		px2 = gaussianNormalPdf(xk[:,k],mux2[1,:],Pxx2[1,:,:])
+		Ly2[k] = 0.5*(pyx*px1 + pyx*px2)
+	'''
+
 # clusterConvergence2Modes
 #
 # clusterConvergence algorithm for the case when there are either one or two modes
@@ -492,6 +564,73 @@ class clustering_enkf(nonlinear_enkf):
 				Pkk = Pkk + coef*np.outer(self.xk[:,j]-self.means[:,jk],self.xk[:,j]-self.means[:,jk])
 			self.covariances[:,:,jk] = Pkk.copy()
 
+## cluster_enkf2
+#
+# new version of the clustering ENKF. Uses the measurement likelihood function to select number of means, because that makes more sense to me
+# Also avoids clustering during the propagation step, which might help speed up the run time.
+class clustering_enkf2(clustering_enkf):
+	def propagateOde(self,dt,dtout = None):
+		# use standard propagation
+		nonlinear_enkf.propagateOde(self,dt,dtout)
+	def update(self,ymeas):
+		# generate sample measurement noises from the covariance _Rk
+		# dy is N x h where h is the number of outputs
+		dy = np.random.multivariate_normal( np.zeros(self._Rk.shape[0]) ,self._Rk,size=(self._N,)).transpose()
+		yexp = np.zeros((self._Rk.shape[0],self._N))
+		yexpc = np.zeros((self._Rk.shape[0],self._N))
+		for k in range(self._N):
+			yexpc[:,k] = self.measurementFunction(self.xk[:,k],self.t,self.u,np.zeros(self._Rk.shape[0]))
+			# compute the measurement expectation WITH noise
+			yexp[:,k] = self.measurementFunction(self.xk[:,k],self.t,self.u,dy[:,k])
+		# call clustering function on the apriori particles
+		(nm,idxk,mux,Pxx) = clusterConvergence2ModesL(self.xk,ymeas,self._Rk,yexpc)
+		# save the means index, which can be logged externally
+		self.meansIdx = idxk.copy()
+		if nm == 1:
+			# single update
+			xhatm = mux
+			# compute the mean expectation
+			yhat = np.mean(yexp,axis=1)
+			# compute the output covariance and cross-covariance
+			Pyy = np.zeros(self._Rk.shape)
+			Pxy = np.zeros((self._n,self._Rk.shape[0]))
+			coef = 1.0/(float(self._N)-1.0)
+			for k in range(self._N):
+				Pyy = Pyy + coef*np.outer(yexp[:,k]-yhat,yexp[:,k]-yhat)
+				Pxy = Pxy + coef*np.outer(self.xk[:,k]-xhatm,yexp[:,k]-yhat)
+			# Compute the Kalman gain
+			Kk = np.dot(Pxy,np.linalg.inv(Pyy))
+			# update each state
+			for k in range(self._N):
+				innov = Kk*(ymeas - yexp[:,k])
+				for j in range(self._n):
+					self.xk[j,k] = self.xk[j,k] + innov[j]
+		else:
+			# bimodal update
+			for jk in range(2):
+				# get index of current cluster
+				idx = np.nonzero(idxk==jk)
+				idx = idx[0]
+				# mean
+				xhatm = mux[jk,:]
+				# mean expectation
+				yhat = np.mean(yexp[:,idx],axis=1)
+				Np = len(idx)
+				# compute the output covariance and cross-covariance
+				Pyy = np.zeros(self._Rk.shape)
+				Pxy = np.zeros((self._n,self._Rk.shape[0]))
+				coef = 1.0/(float(Np)-1.0)
+				for k in idx:
+					Pyy = Pyy + coef*np.outer(yexp[:,k]-yhat,yexp[:,k]-yhat)
+					Pxy = Pxy + coef*np.outer(self.xk[:,k]-xhatm,yexp[:,k]-yhat)
+				# Compute the Kalman gain
+				Kk = np.dot(Pxy,np.linalg.inv(Pyy))
+				# update each state
+				for k in idx:
+					innov = Kk*(ymeas - yexp[:,k])
+					for j in range(self._n):
+						self.xk[j,k] = self.xk[j,k] + innov[j]
+
 ## adaptive_enkf
 #
 # version of the Ensemble Kalman Filter that adapts the size of the ensemble based on the convergence properties of the computed mean and covariance
@@ -573,5 +712,3 @@ class adaptive_enkf(enkf):
 			innov = Kk*(ymeas + dy[:,k] - np.dot(self._Hk,self.xk[:,k]))
 			for j in range(self._n):
 				self.xk[j,k] = self.xk[j,k] + innov[j]
-
-

@@ -22,6 +22,19 @@ def plot_animate(tsp,yout,dest='animate/'):
     for k in range(1,nSteps,50):
         # clear figure
         fig.clf()
+        tilt = 'Phase portrait at t = %f' % tsp[k]
+        ax = [fig.add_subplot(111,ylabel='X2',xlabel='X1',title=tilt)]
+        ax[0].plot(yout[0:k,np.arange(0,2*Np,2)],yout[0:k,np.arange(1,2*Np+1,2)])
+        ax[0].plot(yout[k,np.arange(0,2*Np,2)],yout[k,np.arange(1,2*Np+1,2)],'x')
+
+        #fig.show()
+        fig.savefig(dest+'anim_f%d.png' % (k))
+        time.sleep(0.1)
+        print(k,tsp[k])
+    '''
+    for k in range(1,nSteps,50):
+        # clear figure
+        fig.clf()
         ax = [fig.add_subplot(131,ylabel='x_1'),fig.add_subplot(132,ylabel='x_2'),fig.add_subplot(133,ylabel='phase')]
         ax[0].plot(tsp[0:k],yout[0:k,np.arange(0,2*Np,2)])
         ax[1].plot(tsp[0:k],yout[0:k,np.arange(1,2*Np+1,2)])
@@ -32,6 +45,7 @@ def plot_animate(tsp,yout,dest='animate/'):
         fig.savefig(dest+'anim_f%d_t%f.png' % (k,tsp[k]))
         time.sleep(0.1)
         print(k,tsp[k])
+    '''
 
 def convergence_test(Npi = 8):
     # initial state uncertainty

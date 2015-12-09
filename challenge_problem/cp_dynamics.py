@@ -69,10 +69,13 @@ def ode_wrapper(fun,x0,tsp):
 def eqom_det(x,t):
     dx = np.zeros((2,))
     dx[0] = x[1]
-    dx[1] = x[0]-epsilon_eqom*math.pow(x[0],3.0)
+    try:
+        dx[1] = x[0]-epsilon_eqom*math.pow(x[0],3.0)
+    except OverflowError:
+        print("Overflow warning in eqom_det: x = (%f,%f)" % (x[0],x[1]))
     return dx
 
-## eqom_stoch_jac Jacobian of eqom_det at a given state and time
+## eqom_det_jac Jacobian of eqom_det at a given state and time
 #
 #   @param[in] t time
 #   @param[in] x state (position, velocity)
@@ -83,7 +86,7 @@ def eqom_det_jac(x,t,v=None):
     Fk[1,0] = 1.0-epsilon_eqom*3.0*x[0]*x[0]
     return Fk
 
-## eqom_stoch_Gk process noise influence matrix of eqom_det at a given state and time
+## eqom_det_Gk process noise influence matrix of eqom_det at a given state and time
 #
 #   @param[in] t time
 #   @param[in] x state (position, velocity)

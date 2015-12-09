@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 import time
 import scipy.stats as stats
+import scipy.linalg # for sqrtm() function
 import scipy.integrate as sp
 
 sys.path.append('../')
@@ -22,6 +23,8 @@ import kmeans
 sys.path.append('../sim_data')
 import data_loader
 
+import cluster_processing
+
 ## Function for the filter to propagate a particle.
 #
 #@param[in] x initial state
@@ -30,9 +33,9 @@ import data_loader
 #@param[out] xk the propagated state at time t+dt
 #
 # We're treating the process noise as piecewise constant - let's try to get it to work that way, and if it won't we'll use or modify ode_wrapper to sample at cp_dynamics.DT while integrating
-def eqom_use(x,dt,v):
+def eqom_use(x,dt,v=None):
 	# continuous-time integration
-    ysim = sp.odeint(cp_dynamics.eqom_stoch,x,np.array([0,dt]),args=(v,))
+    ysim = sp.odeint(cp_dynamics.eqom_stoch_cluster,x,np.array([0,dt]),args=(v,))
     # return new state
     xk = ysim[-1,:].transpose()
     return xk
@@ -126,7 +129,8 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100,informative=True):
 		ym = np.array([YK[k]])
 		ts = ts + dt
 		# call SIR
-		SIR.update(dt,ym)
+		SIR.update(dt,ym,1.0e-2)
+		print("Propagate to t = %f in %f sec" % (ts,time.time()-t1))
 		# store
 		weights[k,:] = SIR.WI.copy()
 		Xp[k,:,:] = SIR.XK.copy()
@@ -158,8 +162,8 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100,informative=True):
 	return(mux,Pxx,Xp,weights,Xs,muxs)
 
 def main():
-	# number of particles
-	Nsu = 400
+	# number of particles, 300 seems necessary for pretty good consistent performance
+	Nsu = 300
 	global nameBit
 	names = ['sims_01_bifurcation_noninformative']
 	flag_informative=False
@@ -167,27 +171,26 @@ def main():
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
 
+		'''
+		tsim = tsim[0:2]
+		XK = XK[0:2,:]
+		YK = YK[0:2,:]
+		tf = tsim[1]
+		'''
 		Ns = 1
 
 		nameBit = int(nameNow[5:7],2)
 		# parse the name
 		if nameBit == 1:
-			# tuned noise levels for the SIR with white noise forcing
-			Qk = np.array([[0.8]])
-			#Qk = np.array([[1.0*dt]])
-			if dt < 0.09: # fast sampling
-				Qk = np.array([[10.0/dt]])
-			if dt > 0.11: # slow sampling
-				Qk = np.array([[0.1]])
-			Rk = np.array([[1.0]])
+			# noise levels for the SIR with white noise forcing
+			Qk = np.array([[3.16]])
+			Rk = np.array([[0.1]])
+		'''
 		if nameBit == 2:
-			# tuned noise levels for the SIR with cosine forcing
+			# noise levels for the SIR with cosine forcing
 			Qk = np.array([[31.6]])
-			if dt < 0.09: # fast sampling
-				Qk = np.array([[1000.0]])
-			if dt > 0.11: # slow sampling
-				Qk = np.array([[10.0]])
-			Rk = np.array([[1.0]])
+			Rk = np.array([[0.01]])
+		'''
 		# number of steps in each simulation
 		nSteps = len(tsim)
 		nees_history = np.zeros((nSteps,Ns))
@@ -197,25 +200,24 @@ def main():
 			yk = YK[:,counter]
 
 			(xf,Pf,Xp,weights,Xs,xs) = sir_test(dt,tf,mu0,P0,yk,Qk,Rk,Nsu,flag_informative)
-			# compute the unit variance transformation of the error
-			e1 = np.zeros((nSteps,2))
-			chi2 = np.zeros(nSteps)
-			for k in range(nSteps):
-				P = Pf[k,:].reshape((2,2))
-				Pinv = np.linalg.inv(P)
-				chi2[k] = np.dot(xk[k,:]-xf[k,:],np.dot(Pinv,xk[k,:]-xf[k,:]))
+			# call PF cluster processing function
+			weightsEqual = np.ones((nSteps,Xs.shape[2]))*1.0/float(Xs.shape[2])
+			(e1,chi2,mxnu,Pxnu) = cluster_processing.singleSimErrorsPf(Xp,weights,xk)
+
 			# chi2 is the NEES statistic. Take the mean
 			nees_history[:,counter] = chi2.copy()
-			mean_nees = np.sum(chi2)/float(nSteps)
+			#mean_nees = np.sum(chi2)/float(nSteps)
+			mean_nees = np.mean(chi2)
 			print(mean_nees)
 			# mean NEES
-			mse = np.sum(np.power(xk-xf,2.0),axis=0)/float(nSteps)
-			e_sims[(counter*nSteps):(counter*nSteps+nSteps),:] = xk-xf
-
+			mse = np.sum(np.power(e1,2.0),axis=0)/float(nSteps)
+			e_sims[(counter*nSteps):(counter*nSteps+nSteps),:] = e1.copy()
+			print("sir_clustering case %d" % counter)
 			print("MSE: %f,%f" % (mse[0],mse[1]))
 		if Ns < 2:
 			# loop over the particles after sampling and cluster using kmeans
 			# errors for the bifurcated case
+			'''
 			e2case = np.zeros((2,nSteps,2))
 			for k in range(nSteps):
 				# cluster into two means
@@ -223,6 +225,7 @@ def main():
 				# compute the errors for the two means
 				for jk in range(2):
 					e2case[jk,k,:] = mui[jk,:]-xk[k,:]
+			'''
 			# plot of the discrete PDF and maximum likelihood estimate
 			# len(tsim) x Ns matrix of times
 			tMesh = np.kron(np.ones((Nsu,1)),tsim).transpose()
@@ -258,12 +261,15 @@ def main():
 					ax[k].plot(tsim,xf[:,k-2],'m--')
 					ax[k].plot(tsim,xk[:,k-2],'b-')
 				else:
-					ax[k].plot(tsim,xf[:,k-4]-xk[:,k-4],'b-')
-					# plot the mean after sampling
-					ax[k].plot(tsim,e2case[0,:,k-4],'y-')
-					ax[k].plot(tsim,e2case[1,:,k-4],'y-')
-					ax[k].plot(tsim,3.0*np.sqrt(Pf[:,k-4 + 2*(k-4)]),'r--')
-					ax[k].plot(tsim,-3.0*np.sqrt(Pf[:,k-4 + 2*(k-4)]),'r--')
+					#ax[k].plot(tsim,xf[:,k-4]-xk[:,k-4],'b-')
+					# plot the error based on maximum likelihood
+					ax[k].plot(tsim,e1[:,k-4],'y-')
+					ax[k].plot(tsim,3.0*np.sqrt(Pxnu[:,k-4,k-4]),'r--')
+					ax[k].plot(tsim,-3.0*np.sqrt(Pxnu[:,k-4,k-4]),'r--')
+					#ax[k].plot(tsim,e2case[0,:,k-4],'y-')
+					#ax[k].plot(tsim,e2case[1,:,k-4],'y-')
+					#ax[k].plot(tsim,3.0*np.sqrt(Pf[:,k-4 + 2*(k-4)]),'r--')
+					#ax[k].plot(tsim,-3.0*np.sqrt(Pf[:,k-4 + 2*(k-4)]),'r--')
 				ax[k].grid()
 
 			fig1.show()
@@ -275,12 +281,28 @@ def main():
 				fig = []
 				for k in range(nSteps):
 					fig.append(plt.figure())
-					ax = fig[k].add_subplot(1,1,1,title="t = %f" % (tsim[k]))
+					ax = fig[k].add_subplot(1,1,1,title="t = %f" % (tsim[k]),xlim=(-25,25),ylim=(-20,20),ylabel='x2',xlabel='x1')
 					ax.plot(Xp[k,0,:],Xp[k,1,:],'bd')#propagated values
 					ax.plot(Xs[k,0,:],Xs[k,1,:],'ys')#re-sampled values
 					#compute the number of active means
 					# plot the truth state
-					ax.plot(xk[k,0],xk[k,1],'ks')
+					ax.plot(xk[k,0],xk[k,1],'cs')
+					# plot the maximum likelihood cluster mean and covariance ellipse
+					# plot the single-mean covariance ellipsoid
+					# draw points on a unit circle
+					'''
+					thetap = np.linspace(0,2*math.pi,20)
+					circlP = np.zeros((20,2))
+					circlP[:,0] = 3.0*np.cos(thetap)
+					circlP[:,1] = 3.0*np.sin(thetap)
+					# transform the points circlP through P^(1/2)*circlP + mu
+					Phalf = np.real(scipy.linalg.sqrtm(Pxnu[k,:,:]))
+					ellipsP = np.zeros(circlP.shape)
+					for kj in range(circlP.shape[0]):
+						ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mxnu[k,:]
+					ax.plot(ellipsP[:,0],ellipsP[:,1],'r--')
+					'''
+					ax.plot(mxnu[k,0],mxnu[k,1],'rd')
 					'''
 					meansIdx = Idx[k,:].copy()
 					activeMeans = 1
@@ -330,60 +352,61 @@ def main():
 						# plot the truth state
 						ax.plot(xk[k,0],xk[k,1],'ks')
 					'''
+
 					fig[k].show()
 				raw_input("Return to quit")
 				for k in range(nSteps):
+					fig[k].savefig('stepByStep/sir_' + str(Nsu) + "_" + str(k) + '.png')
 					plt.close(fig[k])
-		'''
-		# get the mean NEES value versus simulation time across all sims
-		nees_mean = np.sum(nees_history,axis=1)/Ns
-		# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
-		chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
-		chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
+		else:
+			# get the mean NEES value versus simulation time across all sims
+			nees_mean = np.sum(nees_history,axis=1)/Ns
+			# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
+			chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
+			chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
 
-		# plot the mean NEES with the 95% confidence bounds
-		fig2 = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
-		tilt = "SIR, Ts = %.2f, %d sims, %d particles, " % (dt, Ns, Nsu)
-		if nameBit == 0:
-			tilt = tilt + 'unforced'
-		if nameBit == 1:
-			#white-noise only
-			tilt = tilt + 'white-noise forcing'
-		if nameBit == 2:
-			tilt = tilt + 'cosine forcing'
-		if nameBit == 3:
-			#white-noise and cosine forcing
-			tilt = tilt + 'white-noise and cosine forcing'
-		ax = fig2.add_subplot(111,ylabel='mean NEES')#,title=tilt)
-		ax.set_title(tilt,fontsize = 12)
-		ax.plot(tsim,chiUpper*np.ones(nSteps),'r--')
-		ax.plot(tsim,chiLower*np.ones(nSteps),'r--')
-		ax.plot(tsim,nees_mean,'b-')
-		ax.grid()
-		fig2.show()
-		# save the figure
-		fig2.savefig('nees_sir_' + str(Nsu) + "_" + nameNow + '.png')
-		# find fraction of inliers
-		l1 = (nees_mean < chiUpper).nonzero()[0]
-		l2 = (nees_mean > chiLower).nonzero()[0]
-		# get number of inliers
-		len_in = len(set(l1).intersection(l2))
-		# get number of super (above) liers (sic)
-		len_super = len((nees_mean > chiUpper).nonzero()[0])
-		# get number of sub-liers (below)
-		len_sub = len((nees_mean < chiLower).nonzero()[0])
+			# plot the mean NEES with the 95% confidence bounds
+			fig2 = plt.figure(figsize=(6.0,3.37)) #figsize tuple is width, height
+			tilt = "SIR, Ts = %.2f, %d sims, %d particles, " % (dt, Ns, Nsu)
+			if nameBit == 0:
+				tilt = tilt + 'unforced'
+			if nameBit == 1:
+				#white-noise only
+				tilt = tilt + 'white-noise forcing'
+			if nameBit == 2:
+				tilt = tilt + 'cosine forcing'
+			if nameBit == 3:
+				#white-noise and cosine forcing
+				tilt = tilt + 'white-noise and cosine forcing'
+			ax = fig2.add_subplot(111,ylabel='mean NEES')#,title=tilt)
+			ax.set_title(tilt,fontsize = 12)
+			ax.plot(tsim,chiUpper*np.ones(nSteps),'r--')
+			ax.plot(tsim,chiLower*np.ones(nSteps),'r--')
+			ax.plot(tsim,nees_mean,'b-')
+			ax.grid()
+			fig2.show()
+			# save the figure
+			fig2.savefig('nees_sir_' + str(Nsu) + "_" + nameNow + '.png')
+			# find fraction of inliers
+			l1 = (nees_mean < chiUpper).nonzero()[0]
+			l2 = (nees_mean > chiLower).nonzero()[0]
+			# get number of inliers
+			len_in = len(set(l1).intersection(l2))
+			# get number of super (above) liers (sic)
+			len_super = len((nees_mean > chiUpper).nonzero()[0])
+			# get number of sub-liers (below)
+			len_sub = len((nees_mean < chiLower).nonzero()[0])
 
-		print("Conservative (below 95%% bounds): %f" % (float(len_sub)/float(nSteps)))
-		print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
+			print("Conservative (below 95%% bounds): %f" % (float(len_sub)/float(nSteps)))
+			print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
 
-		# save metrics
-		FID = open('metrics_sir_' + str(Nsu) + "_" + nameNow + '.txt','w')
-		FID.write("mse1,mse2,nees_below95,nees_above95\n")
-		FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
-		FID.close()
-		'''
+			# save metrics
+			FID = open('metrics_sir_' + str(Nsu) + "_" + nameNow + '.txt','w')
+			FID.write("mse1,mse2,nees_below95,nees_above95\n")
+			FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
+			FID.close()
 
-	print("Leaving sir_trials")
+	print("Leaving sir_clustering")
 
 	return
 

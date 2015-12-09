@@ -151,35 +151,41 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100):
 
 def main():
 	# number of particles
-	Nsu = 100
+	Nsu = 200
 	global nameBit
-	#names = ['sims_10_slow']# test case
-	names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast']
+	#names = ['sims_11_fast']# test case
+	names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast','sims_11_slow','sims_11_medium','sims_11_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
-
-		#Ns = 1
 
 		nameBit = int(nameNow[5:7],2)
 		# parse the name
 		if nameBit == 1:
 			# tuned noise levels for the SIR with white noise forcing
-			Qk = np.array([[0.8]])
-			#Qk = np.array([[1.0*dt]])
+			Qk = np.array([[1.0]])
 			if dt < 0.09: # fast sampling
-				Qk = np.array([[10.0/dt]])
+				Qk = np.array([[100.0]])
 			if dt > 0.11: # slow sampling
 				Qk = np.array([[0.1]])
 			Rk = np.array([[1.0]])
 		if nameBit == 2:
 			# tuned noise levels for the SIR with cosine forcing
-			Qk = np.array([[31.6]])
+			Qk = np.array([[3.16]])
 			if dt < 0.09: # fast sampling
-				Qk = np.array([[1000.0]])
+				Qk = np.array([[316.0]])#tuned-ish
 			if dt > 0.11: # slow sampling
-				Qk = np.array([[10.0]])
+				Qk = np.array([[0.5]])
 			Rk = np.array([[1.0]])
+		if nameBit == 3:
+			# tuned noise levels for the SIR with white noise forcing
+			Qk = np.array([[3.16]])
+			if dt < 0.09: # fast sampling
+				Qk = np.array([[31.6]])
+			if dt > 0.11: # slow sampling
+				Qk = np.array([[1.0]])
+			Rk = np.array([[1.0]])
+		print(Qk[0,0])
 		# number of steps in each simulation
 		nSteps = len(tsim)
 		nees_history = np.zeros((nSteps,Ns))
@@ -258,7 +264,7 @@ def main():
 		chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
 
 		# plot the mean NEES with the 95% confidence bounds
-		fig2 = plt.figure(figsize=(5.0,2.81)) #figsize tuple is width, height
+		fig2 = plt.figure(figsize=(6.0,3.37)) #figsize tuple is width, height
 		tilt = "SIR, Ts = %.2f, %d sims, %d particles, " % (dt, Ns, Nsu)
 		if nameBit == 0:
 			tilt = tilt + 'unforced'

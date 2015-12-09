@@ -44,7 +44,7 @@ def kmeans(X,kargin):
 		for j in range(X.shape[1]):
 			# new means
 			means[:,j] = np.divide(means[:,j],nmembers)
-		# calculate he change in mean for convergence
+		# calculate the change in mean for convergence
 		meanShift = np.sqrt(np.sum(np.power(np.add(mui,-1.0*means),2.0),axis=1))
 		#print(meanShift)
 		mui = means.copy()

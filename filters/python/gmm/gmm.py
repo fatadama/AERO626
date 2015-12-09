@@ -176,6 +176,7 @@ class gmm():
 	## resample from the kth Gaussian with probability alphai[k], and set the new weights to equal
 	def resample(self):
 		Aki = np.zeros(self.aki.shape)
+		Ppki = np.zeros(self.Pki.shape)
 		for k in range(self.aki.shape[1]):
 			u1 = np.random.uniform(0,1)
 			s = 0.0
@@ -186,7 +187,10 @@ class gmm():
 				if s > u1:
 					break
 			Aki[:,k] = np.random.multivariate_normal(self.aki[:,ju],self.Pki[:,:,ju])
+			Ppki[:,:,k] = self.Pki[:,:,ju].copy()
+		# resample the covariances also
 		self.aki = Aki.copy()
+		self.Pki = Ppki.copy()
 		# equalize the weights
 		self.alphai = 1.0/float(self.aki.shape[1])*np.ones(self.aki.shape[1])
 	# resample using Markov chain Monte Carlo according to a normal proposal distribution

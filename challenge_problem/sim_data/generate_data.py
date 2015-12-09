@@ -21,21 +21,26 @@ def etaCalc(k,kmax,dt):
         print("Estimated time remaining: %f hrs" % (eta*0.00027777777) )
 
 ## initial covariance
-P0 = np.array([ [2.0, 1.0e-6],[1.0e-6, 1.0] ])
+P0 = np.array([ [0.1, 1.0e-6],[1.0e-6, 1.0] ])
+# use [2.0 1.0e-6],[1.0e-6, 1.0] for bifurcation case to really exaggerate
+Pcluster = np.array([ [2.0, 1.0e-6],[1.0e-6, 1.0] ])
 ## initial mean
 mux0 = np.array([0.0,0.0])
 ## number of simulations to run per case
-Ns = 10
+Ns = 100
 #Ns = 100
 ## simulation stop time
-tf = 10.0
+tf = 30.0
 #tf = 30.0
 
 # @param[in] informative Set to False to use non-informative position measurements (y = position^2)
-def generate_sim(function,Ts,tf,name=None,informative=True):
+def generate_sim(function,Ts,tf,name=None,cluster=False,informative=True):
 	nSteps = int(tf/Ts)+1
 	## matrix of initial conditions, size 2 x N
-	X0 = np.random.multivariate_normal(mux0,P0,size=(Ns,)).transpose()
+	if not cluster:
+		X0 = np.random.multivariate_normal(mux0,P0,size=(Ns,)).transpose()
+	else:
+		X0 = np.random.multivariate_normal(mux0,Pcluster,size=(Ns,)).transpose()
 	## simulation output/measurement times
 	tsim = np.arange(0.0,tf+Ts,Ts)
 	## simulation output measurements
@@ -45,10 +50,13 @@ def generate_sim(function,Ts,tf,name=None,informative=True):
 
 	t1 = time.time()
 	for k in range(Ns):
-		if informative:
+		if not cluster:
 			sim = cp_dynamics.cp_simObject(function,X0[:,k],Ts)
-		else:
-			sim = cp_dynamics.cp_simObjectNonInformative(function,X0[:,k],Ts)
+		if cluster:
+			if informative:
+				sim = cp_dynamics.cp_simObjectCluster(function,X0[:,k],Ts)
+			else:
+				sim = cp_dynamics.cp_simObjectNonInformative(function,X0[:,k],Ts)
 		# simulate
 		(YK[:,k],XK[:,(2*k):(2*k+2)],tk) = sim.simFull(Tf=tf)
 		t2 = time.time()
@@ -65,10 +73,16 @@ def generate_sim(function,Ts,tf,name=None,informative=True):
 		FID.write("Ts: %g\n" % (Ts))
 		FID.write("tf: %g\n" % tf)
 		FID.write("Ns: %d\n" % Ns)
-		FID.write("P0_11: %f\n" %  P0[0,0])
-		FID.write("P0_12: %f\n" %  P0[0,1])
-		FID.write("P0_21: %f\n" %  P0[1,0])
-		FID.write("P0_22: %f\n" %  P0[1,1])
+		if not cluster:
+			FID.write("P0_11: %f\n" %  P0[0,0])
+			FID.write("P0_12: %f\n" %  P0[0,1])
+			FID.write("P0_21: %f\n" %  P0[1,0])
+			FID.write("P0_22: %f\n" %  P0[1,1])
+		else:
+			FID.write("P0_11: %f\n" %  Pcluster[0,0])
+			FID.write("P0_12: %f\n" %  Pcluster[0,1])
+			FID.write("P0_21: %f\n" %  Pcluster[1,0])
+			FID.write("P0_22: %f\n" %  Pcluster[1,1])
 		FID.write("mux_1: %f\n" % mux0[0])
 		FID.write("mux_2: %f\n" % mux0[1])
 		FID.close()
@@ -112,13 +126,12 @@ generate_sim(cp_dynamics.eqom_stoch,1.0,tf,name='sims_01_slow')
 generate_sim(cp_dynamics.eqom_det_f,0.01,tf,name='sims_10_fast')
 generate_sim(cp_dynamics.eqom_det_f,0.1,tf,name='sims_10_medium')
 generate_sim(cp_dynamics.eqom_det_f,1.0,tf,name='sims_10_slow')
-'''
+
 generate_sim(cp_dynamics.eqom,0.01,tf,name='sims_11_fast')
 generate_sim(cp_dynamics.eqom,0.1,tf,name='sims_11_medium')
 generate_sim(cp_dynamics.eqom,1.0,tf,name='sims_11_slow')
 '''
 # very long period observations - bifurcation case
-generate_sim(cp_dynamics.eqom_stoch,5.0,60.0,name='sims_01_bifurcation')
+generate_sim(cp_dynamics.eqom_stoch_cluster,5.0,60.0,name='sims_01_bifurcation',cluster=True,informative=True)
 # simulation bifurcation case with uninformative measurements
-generate_sim(cp_dynamics.eqom_stoch,5.0,60.0,name='sims_01_bifurcation_noninformative',informative=False)
-'''
+generate_sim(cp_dynamics.eqom_stoch_cluster,5.0,60.0,name='sims_01_bifurcation_noninformative',cluster=True,informative=False)

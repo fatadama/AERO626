@@ -92,15 +92,14 @@ def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False):
 
 def main():
 	global nameBit
-	#names = ['sims_10_slow']
-	#names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast','sims_11_slow','sims_11_medium','sims_11_fast']# test case
-	names = ['sims_01_slow','sims_01_medium','sims_10_slow','sims_10_medium','sims_11_slow','sims_11_medium']# test case
-	flag_adapt = True
+	names = ['sims_10_fast']
+	#names = ['sims_01_slow','sims_01_medium','sims_10_slow','sims_10_medium','sims_11_slow','sims_11_medium']# test case
+	flag_adapt = False
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
 
-		Ns = 100
+		Ns = 1
 
 		nameBit = int(nameNow[5:7],2)
 		# parse the name

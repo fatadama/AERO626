@@ -151,13 +151,17 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100):
 
 def main():
 	# number of particles
-	Nsu = 200
+	Nsu = 300
 	global nameBit
-	#names = ['sims_11_fast']# test case
-	names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast','sims_11_slow','sims_11_medium','sims_11_fast']
+
+	#names = ['sims_11_medium']
+	names = ['sims_01_medium','sims_10_medium','sims_11_medium']# test case
+	#names = ['sims_01_slow','sims_01_medium','sims_01_fast','sims_10_slow','sims_10_medium','sims_10_fast','sims_11_slow','sims_11_medium','sims_11_fast']
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
+
+		Ns = 100
 
 		nameBit = int(nameNow[5:7],2)
 		# parse the name

@@ -107,6 +107,9 @@ def main(argin='../trials'):
 			if metricsCheck == 'metrics' and extensionCheck == 'txt':
 				fnlist = fn.split('_')
 				filtername = fnlist[1]
+				# if filtername == "sir", append the number of particles to the name
+				if filtername == "sir":
+					filtername = filtername + '(' + fnlist[2] + ')'
 				juse = -1
 				if len(filters) > 0:
 					for j in range(len(filters)):
@@ -118,7 +121,7 @@ def main(argin='../trials'):
 					filters.append(filterdat(filtername))
 					juse = len(filters)-1
 				print(filtername,filters[juse].name,juse)
-				if filtername == 'sir':
+				if filtername[0:3] == 'sir':
 					Ns = int(fnlist[2])
 					filters[juse].notes = '%d particles' % (Ns)
 					namebit = int(fnlist[4],2)

@@ -131,7 +131,7 @@ class ukf():
     #   @param dtout minimum step size for integration - defaults to 0.01
     def propagateRK4(self,dt,xk,vk,dtout=None):
         if dtout == None:
-            dtout = 0.01
+            dtout = max(0.01,0.1*dt)
         # vector of times over which to integrate
         nu = int(dt/dtout)
         dts = [dtout]

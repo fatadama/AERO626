@@ -33,6 +33,38 @@ Ns = 100
 tf = 30.0
 #tf = 30.0
 
+# @param[in] Nsims number of simulations to run
+# @param[in] P0 initial covariance of points
+# TODO modify generate_sim to call this function
+def execute_sim(function,Ts,tf,Nsims,Pi,name=None,cluster=False,informative=True):
+	nSteps = int(tf/Ts)+1
+	## matrix of initial conditions, size 2 x N
+	X0 = np.random.multivariate_normal(mux0,Pi,size=(Nsims,)).transpose()
+	## simulation output/measurement times
+	tsim = np.arange(0.0,tf+Ts,Ts)
+	## simulation output measurements
+	YK = np.zeros((nSteps,Nsims))
+	## simulation state history
+	XK = np.zeros((nSteps,2*Nsims))
+
+	t1 = time.time()
+	for k in range(Nsims):
+		if not cluster:
+			sim = cp_dynamics.cp_simObject(function,X0[:,k],Ts)
+		if cluster:
+			if informative:
+				sim = cp_dynamics.cp_simObjectCluster(function,X0[:,k],Ts)
+			else:
+				sim = cp_dynamics.cp_simObjectNonInformative(function,X0[:,k],Ts)
+		# simulate
+		(YK[:,k],XK[:,(2*k):(2*k+2)],tk) = sim.simFull(Tf=tf)
+		t2 = time.time()
+		etaCalc(k,Nsims,t2-t1)
+	t2 = time.time()
+	print("Completed %d sims in %g secs" % (Nsims,t2-t1))
+
+	return(tsim,XK,YK,mux0,Ts,tf)
+
 # @param[in] informative Set to False to use non-informative position measurements (y = position^2)
 def generate_sim(function,Ts,tf,name=None,cluster=False,informative=True):
 	nSteps = int(tf/Ts)+1
@@ -114,24 +146,28 @@ def generate_sim(function,Ts,tf,name=None,cluster=False,informative=True):
 		raw_input("Return to continue")
 	return
 	
+def main():
+	# run test sims
+	# sims_xx_fast/medium/slow format: xx is a bitstring, where the lowest bit indicates if the Gaussian process noise is on, and highest bit indicates if the forcing function is on
+	# fast/medium/slow refers to the sample rate: (0.01,0.1,1.0)
+	'''
+	generate_sim(cp_dynamics.eqom_stoch,0.01,tf,name='sims_01_fast')
+	generate_sim(cp_dynamics.eqom_stoch,0.1,tf,name='sims_01_medium')
+	generate_sim(cp_dynamics.eqom_stoch,1.0,tf,name='sims_01_slow')
 
-# run test sims
-# sims_xx_fast/medium/slow format: xx is a bitstring, where the lowest bit indicates if the Gaussian process noise is on, and highest bit indicates if the forcing function is on
-# fast/medium/slow refers to the sample rate: (0.01,0.1,1.0)
-'''
-generate_sim(cp_dynamics.eqom_stoch,0.01,tf,name='sims_01_fast')
-generate_sim(cp_dynamics.eqom_stoch,0.1,tf,name='sims_01_medium')
-generate_sim(cp_dynamics.eqom_stoch,1.0,tf,name='sims_01_slow')
+	generate_sim(cp_dynamics.eqom_det_f,0.01,tf,name='sims_10_fast')
+	generate_sim(cp_dynamics.eqom_det_f,0.1,tf,name='sims_10_medium')
+	generate_sim(cp_dynamics.eqom_det_f,1.0,tf,name='sims_10_slow')
 
-generate_sim(cp_dynamics.eqom_det_f,0.01,tf,name='sims_10_fast')
-generate_sim(cp_dynamics.eqom_det_f,0.1,tf,name='sims_10_medium')
-generate_sim(cp_dynamics.eqom_det_f,1.0,tf,name='sims_10_slow')
+	generate_sim(cp_dynamics.eqom,0.01,tf,name='sims_11_fast')
+	generate_sim(cp_dynamics.eqom,0.1,tf,name='sims_11_medium')
+	generate_sim(cp_dynamics.eqom,1.0,tf,name='sims_11_slow')
+	'''
+	# very long period observations - bifurcation case
+	generate_sim(cp_dynamics.eqom_stoch_cluster,5.0,60.0,name='sims_01_bifurcation',cluster=True,informative=True)
+	# simulation bifurcation case with uninformative measurements
+	generate_sim(cp_dynamics.eqom_stoch_cluster,5.0,60.0,name='sims_01_bifurcation_noninformative',cluster=True,informative=False)
 
-generate_sim(cp_dynamics.eqom,0.01,tf,name='sims_11_fast')
-generate_sim(cp_dynamics.eqom,0.1,tf,name='sims_11_medium')
-generate_sim(cp_dynamics.eqom,1.0,tf,name='sims_11_slow')
-'''
-# very long period observations - bifurcation case
-generate_sim(cp_dynamics.eqom_stoch_cluster,5.0,60.0,name='sims_01_bifurcation',cluster=True,informative=True)
-# simulation bifurcation case with uninformative measurements
-generate_sim(cp_dynamics.eqom_stoch_cluster,5.0,60.0,name='sims_01_bifurcation_noninformative',cluster=True,informative=False)
+
+if __name__ == "__main__":
+	main()

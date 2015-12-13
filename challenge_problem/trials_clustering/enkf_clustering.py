@@ -40,7 +40,7 @@ def measurement_uninformative(x,t,u,n):
 def enkf_test(dt,tf,mux0,P0,YK,Qk,Rk,flag_adapt=False,flag_informative=True):
 	global nameBit
 
-	Nsu = 300
+	Nsu = 200
 
 	# measurement influence matrix
 	Hk = np.array([ [1.0,0.0] ])
@@ -120,6 +120,7 @@ def main():
 	names = ['sims_01_bifurcation_noninformative']
 	flag_informative = False
 	flag_adapt = False
+	best_error = True
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
@@ -130,7 +131,7 @@ def main():
 		YK = YK[0:5,:]
 		tf = tsim[4]
 		'''
-		Ns = 1
+		Ns = 100
 
 		nameBit = int(nameNow[5:7],2)
 		# parse the name
@@ -214,7 +215,7 @@ def main():
 					fig[k].savefig('stepByStep/enkf_' + str(Xf.shape[2]) + "_" + str(k) + '.png')
 					plt.close(fig[k])
 
-			(e1,chi2,mx,Pk) = cluster_processing.singleSimErrors(Xf,Idx,xk,yk)
+			(e1,chi2,mx,Pk) = cluster_processing.singleSimErrors(Xf,Idx,xk,yk,best_error)
 			nees_history[:,counter] = chi2.copy()
 			mean_nees = np.sum(chi2)/float(nSteps)
 			print(mean_nees)
@@ -248,58 +249,88 @@ def main():
 				ax[k].grid()
 			fig1.show()
 		else:
-			print("Passing to exit")
-			pass
-			mse_tot = np.mean(np.power(e_sims,2.0),axis=0)
-			print("mse_tot: %f,%f" % (mse_tot[0],mse_tot[1]))
-			
-			# get the mean NEES value versus simulation time across all sims
-			nees_mean = np.sum(nees_history,axis=1)/Ns
-			# get the mean number of particles in time
-			Nf_mean = np.sum(Nf_history,axis=1)/Ns
-			# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
-			chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
-			chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
+			if best_error:
+				mse_tot = np.mean(np.power(e_sims,2.0),axis=0)
+				print("mse_tot: %f,%f" % (mse_tot[0],mse_tot[1]))
+				
+				# get the mean NEES value versus simulation time across all sims
+				nees_mean = np.sum(nees_history,axis=1)/Ns
+				# get the mean number of particles in time
+				Nf_mean = np.sum(Nf_history,axis=1)/Ns
+				# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
+				chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
+				chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
+				# find fraction of inliers
+				l1 = (nees_mean < chiUpper).nonzero()[0]
+				l2 = (nees_mean > chiLower).nonzero()[0]
+				# get number of inliers
+				len_in = len(set(l1).intersection(l2))
+				# get number of super (above) liers (sic)
+				len_super = len((nees_mean > chiUpper).nonzero()[0])
+				# get number of sub-liers (below)
+				len_sub = len((nees_mean < chiLower).nonzero()[0])
 
-			# plot the mean NEES with the 95% confidence bounds
-			fig2 = plt.figure(figsize=(6.0,3.37)) #figsize tuple is width, height
-			tilt = "ENKF, Ts = %.2f, %d sims, " % (dt, Ns)
-			if nameBit == 0:
-				tilt = tilt + 'unforced'
-			if nameBit == 1:
-				#white-noise only
-				tilt = tilt + 'white-noise forcing'
-			if nameBit == 2:
-				tilt = tilt + 'cosine forcing'
-			if nameBit == 3:
-				#white-noise and cosine forcing
-				tilt = tilt + 'white-noise and cosine forcing'
-			ax = fig2.add_subplot(111,ylabel='mean NEES',title=tilt)
-			ax.plot(tsim,chiUpper*np.ones(nSteps),'r--')
-			ax.plot(tsim,chiLower*np.ones(nSteps),'r--')
-			ax.plot(tsim,nees_mean,'b-')
-			ax.grid()
-			fig2.show()
-			# save the figure
-			fig2.savefig('nees_enkf2_' + str(Xf.shape[2]) + '_' + nameNow + '.png')
-			# find fraction of inliers
-			l1 = (nees_mean < chiUpper).nonzero()[0]
-			l2 = (nees_mean > chiLower).nonzero()[0]
-			# get number of inliers
-			len_in = len(set(l1).intersection(l2))
-			# get number of super (above) liers (sic)
-			len_super = len((nees_mean > chiUpper).nonzero()[0])
-			# get number of sub-liers (below)
-			len_sub = len((nees_mean < chiLower).nonzero()[0])
+				print("Conservative (below 95%% bounds): %f" % (float(len_sub)/float(nSteps)))
+				print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
 
-			print("Conservative (below 95%% bounds): %f" % (float(len_sub)/float(nSteps)))
-			print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
+				# save metrics
+				FID = open('bestErrors_enkf_' + str(Xf.shape[2]) + '_' + nameNow + '.txt','w')
+				FID.write("mse1,mse2,nees_below95,nees_above95\n")
+				FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
+				FID.close()
+			else:
+				print("Passing to exit")
+				pass
+				mse_tot = np.mean(np.power(e_sims,2.0),axis=0)
+				print("mse_tot: %f,%f" % (mse_tot[0],mse_tot[1]))
+				
+				# get the mean NEES value versus simulation time across all sims
+				nees_mean = np.sum(nees_history,axis=1)/Ns
+				# get the mean number of particles in time
+				Nf_mean = np.sum(Nf_history,axis=1)/Ns
+				# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
+				chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
+				chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
 
-			# save metrics
-			FID = open('metrics_enkf2_' + str(Xf.shape[2]) + '_' + nameNow + '.txt','w')
-			FID.write("mse1,mse2,nees_below95,nees_above95\n")
-			FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
-			FID.close()
+				# plot the mean NEES with the 95% confidence bounds
+				fig2 = plt.figure(figsize=(6.0,3.37)) #figsize tuple is width, height
+				tilt = "ENKF, Ts = %.2f, %d sims, " % (dt, Ns)
+				if nameBit == 0:
+					tilt = tilt + 'unforced'
+				if nameBit == 1:
+					#white-noise only
+					tilt = tilt + 'white-noise forcing'
+				if nameBit == 2:
+					tilt = tilt + 'cosine forcing'
+				if nameBit == 3:
+					#white-noise and cosine forcing
+					tilt = tilt + 'white-noise and cosine forcing'
+				ax = fig2.add_subplot(111,ylabel='mean NEES',title=tilt)
+				ax.plot(tsim,chiUpper*np.ones(nSteps),'r--')
+				ax.plot(tsim,chiLower*np.ones(nSteps),'r--')
+				ax.plot(tsim,nees_mean,'b-')
+				ax.grid()
+				fig2.show()
+				# save the figure
+				fig2.savefig('nees_enkf2_' + str(Xf.shape[2]) + '_' + nameNow + '.png')
+				# find fraction of inliers
+				l1 = (nees_mean < chiUpper).nonzero()[0]
+				l2 = (nees_mean > chiLower).nonzero()[0]
+				# get number of inliers
+				len_in = len(set(l1).intersection(l2))
+				# get number of super (above) liers (sic)
+				len_super = len((nees_mean > chiUpper).nonzero()[0])
+				# get number of sub-liers (below)
+				len_sub = len((nees_mean < chiLower).nonzero()[0])
+
+				print("Conservative (below 95%% bounds): %f" % (float(len_sub)/float(nSteps)))
+				print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
+
+				# save metrics
+				FID = open('metrics_enkf2_' + str(Xf.shape[2]) + '_' + nameNow + '.txt','w')
+				FID.write("mse1,mse2,nees_below95,nees_above95\n")
+				FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
+				FID.close()
 	
 	raw_input("Return to exit")
 	return

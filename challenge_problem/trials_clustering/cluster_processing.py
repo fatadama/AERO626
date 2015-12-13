@@ -41,11 +41,12 @@ def gaussianNormalPdf(x,mu,P):
 # @param[in] Idx [nSteps * Np] numpy array that identifies the cluster membership of each point in the ensemble at each time in the simulation
 # @param[in] x [nSteps * 2] array of the truth state for each simulation
 # @param[in] y [nSteps * 1] array of the measurements for each point in time
+# @param[in] best_error set to True to always take the minimum MSE when the system has bifurcfated
 # @param[out] e1 [nSteps * 2] array of the estimation errors. When the system has bifurcated, a random cluster is chosen to to compute the error
 # @param[out] chi2 [nSteps]-length vector of the NEES values at every time in the simulation. When 2 clusters are present one is chosen randomly to compute the NEES.
 # @param[out] mx [nSteps * 2] array of the mean at each time
 # @param[out] Pk [nSteps * 2 * 2] array of covariance estimates, logs the same one used in NEES computation
-def singleSimErrors(Xf,Idx,x,y):
+def singleSimErrors(Xf,Idx,x,y,best_error=False):
 	nSteps = Xf.shape[0]
 	e1 = np.zeros((nSteps,2))
 	chi2 = np.zeros(nSteps)
@@ -68,6 +69,7 @@ def singleSimErrors(Xf,Idx,x,y):
 				idu = 1
 		'''
 		# if activeMeans == 2, evaluate the likelihood of the measurement, given the cluster.
+		print("activeMeans: %f" % activeMeans)
 		if activeMeans == 2:
 			# evaluate the expectation of each cluster
 			mu2 = np.zeros((2,2))
@@ -75,12 +77,20 @@ def singleSimErrors(Xf,Idx,x,y):
 			for jk in range(activeMeans):
 				idx = np.nonzero(meansIdx==jk)
 				idx = idx[0]
-				print(np.mean(Xf[k,:,idx],axis=0))
+				#print(np.mean(Xf[k,:,idx],axis=0))
 				mu2[jk,:] = np.mean(Xf[k,:,idx],axis=0).transpose()
 				yexp[jk,0] = mu2[jk,0]*mu2[jk,0]
 			#print("E1: %g, E2: %g" % (yexp[0,0]-y[k],yexp[1,0]-y[k]))
-			if np.fabs(yexp[0,0]-y[k]) > np.fabs(yexp[1,0]-y[k]):
-				idu = 1
+			if best_error:
+				print("xk:%g | xhats: %g, %g" % (x[k,0],mu2[0,0],mu2[1,0]))
+				# figure which error is actually best compared to truth
+				if np.fabs(mu2[0,0]-x[k,0]) > np.fabs(mu2[1,0]-x[k,0]):
+					idu = 1
+				else:
+					idu = 0
+			else:
+				if np.fabs(yexp[0,0]-y[k]) > np.fabs(yexp[1,0]-y[k]):
+					idu = 1
 		#get index of points in the current cluster
 		axu = np.nonzero(meansIdx==idu)
 		axu = axu[0]
@@ -106,11 +116,12 @@ def singleSimErrors(Xf,Idx,x,y):
 # @param[in] Xf [nSteps * 2 * Ns] array of the propagated (but pre-resampled) particles
 # @param[in] weights [nSteps * Ns] array of particle weights
 # @param[in] xk [nSteps * 2] simulation truth states
+# @param[in] best_error set to True to always pick the particle with the lowest error for MSE reporting
 # @param[out] e1 [nSteps * 2] array of the estimation errors. When the system has bifurcated, a random cluster is chosen to to compute the error
 # @param[out] chi2 [nSteps]-length vector of the NEES values at every time in the simulation. When 2 clusters are present one is chosen randomly to compute the NEES.
 # @param[out] mx [nSteps * 2] array of the mean at each time
 # @param[out] Pk [nSteps * 2 * 2] array of covariance estimates, logs the same one used in NEES computation
-def singleSimErrorsPf(Xf,weights,xk):
+def singleSimErrorsPf(Xf,weights,xk,best_error=False):
 	nSteps = Xf.shape[0]
 	Ns = Xf.shape[2]
 	e1 = np.zeros((nSteps,2))
@@ -169,6 +180,26 @@ def singleSimErrorsPf(Xf,weights,xk):
 		mx[k,:] = Lx.copy()
 		# log the covariance that we chose
 		Pk[k,:,:] = LP.copy()
+		if best_error:
+			ec = np.zeros(Xf[k,:,:].shape)
+			ec[0,:] = Xf[k,0,:]-xk[k,0]
+			ec[1,:] = Xf[k,1,:]-xk[k,1]
+			normE = np.sum(np.power(ec,2.0),axis=0)
+			# find minimum Euclidean distance
+			bestIndex = normE.argmin()
+			Lx = Xf[k,:,bestIndex]
+			# make sure we use the covariance from this cluster!
+			if L1max < L2max:
+				jk = idx2[bestIndex]
+				idx = np.nonzero(idx2==jk)
+				idx = idx[0]
+				muk = 0.0
+				for j in idx:
+					muk = muk + weights[k,j]*Xf[k,:,j]
+				Pxk = np.zeros((2,2))
+				for j in idx:
+					Pxk = Pxk + weights[k,j]*np.outer(Xf[k,:,j]-muk,Xf[k,:,j]-muk)
+				LP = Pxk.copy()
 		# evaluate the error and NEES using the maximum likelihood point
 		e1[k,:] = Lx-xk[k,:]
 		# compute NEES

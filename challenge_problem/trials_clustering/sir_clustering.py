@@ -163,10 +163,11 @@ def sir_test(dt,tf,mux0,P0,YK,Qk,Rk,Nparticles = 100,informative=True):
 
 def main():
 	# number of particles, 300 seems necessary for pretty good consistent performance
-	Nsu = 300
+	Nsu = 100
 	global nameBit
 	names = ['sims_01_bifurcation_noninformative']
 	flag_informative=False
+	best_error = True
 	for namecounter in range(len(names)):
 		nameNow = names[namecounter]
 		(tsim,XK,YK,mu0,P0,Ns,dt,tf) = data_loader.load_data(nameNow,'../sim_data/')
@@ -177,7 +178,7 @@ def main():
 		YK = YK[0:2,:]
 		tf = tsim[1]
 		'''
-		Ns = 1
+		Ns = 100
 
 		nameBit = int(nameNow[5:7],2)
 		# parse the name
@@ -202,7 +203,7 @@ def main():
 			(xf,Pf,Xp,weights,Xs,xs) = sir_test(dt,tf,mu0,P0,yk,Qk,Rk,Nsu,flag_informative)
 			# call PF cluster processing function
 			weightsEqual = np.ones((nSteps,Xs.shape[2]))*1.0/float(Xs.shape[2])
-			(e1,chi2,mxnu,Pxnu) = cluster_processing.singleSimErrorsPf(Xp,weights,xk)
+			(e1,chi2,mxnu,Pxnu) = cluster_processing.singleSimErrorsPf(Xp,weights,xk,best_error)
 
 			# chi2 is the NEES statistic. Take the mean
 			nees_history[:,counter] = chi2.copy()
@@ -290,75 +291,41 @@ def main():
 					# plot the maximum likelihood cluster mean and covariance ellipse
 					# plot the single-mean covariance ellipsoid
 					# draw points on a unit circle
-					'''
-					thetap = np.linspace(0,2*math.pi,20)
-					circlP = np.zeros((20,2))
-					circlP[:,0] = 3.0*np.cos(thetap)
-					circlP[:,1] = 3.0*np.sin(thetap)
-					# transform the points circlP through P^(1/2)*circlP + mu
-					Phalf = np.real(scipy.linalg.sqrtm(Pxnu[k,:,:]))
-					ellipsP = np.zeros(circlP.shape)
-					for kj in range(circlP.shape[0]):
-						ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mxnu[k,:]
-					ax.plot(ellipsP[:,0],ellipsP[:,1],'r--')
-					'''
 					ax.plot(mxnu[k,0],mxnu[k,1],'rd')
-					'''
-					meansIdx = Idx[k,:].copy()
-					activeMeans = 1
-					if np.any(meansIdx > 0):
-						activeMeans = 2
-					for jk in range(activeMeans):
-						idx = np.nonzero(meansIdx==jk)
-						idx = idx[0]
-						mux = np.mean(Xf[k,:,idx],axis=0)
-						Pxx = np.zeros((2,2))
-						for kj in idx:
-							Pxx = Pxx + 1.0/(float(len(idx))-1.0)*np.outer(Xf[k,:,kj]-mux,Xf[k,:,kj]-mux)
-						mux0 = np.mean(Xp[k,:,idx],axis=0)
-						Pxx0 = np.zeros((2,2))
-						for kj in idx:
-							Pxx0 = Pxx0 + 1.0/(float(len(idx))-1.0)*np.outer(Xp[k,:,kj]-mux0,Xp[k,:,kj]-mux0)
-						if jk == 0:
-							ax.plot(Xf[k,0,idx],Xf[k,1,idx],'mo')
-							ax.plot(Xp[k,0,idx],Xp[k,1,idx],'bd')
-						else:
-							ax.plot(Xf[k,0,idx],Xf[k,1,idx],'co')
-							ax.plot(Xp[k,0,idx],Xp[k,1,idx],'rd')
-						# plot the single-mean covariance ellipsoid
-						# draw points on a unit circle
-						thetap = np.linspace(0,2*math.pi,20)
-						circlP = np.zeros((20,2))
-						circlP[:,0] = 3.0*np.cos(thetap)
-						circlP[:,1] = 3.0*np.sin(thetap)
-						# transform the points circlP through P^(1/2)*circlP + mu
-						Phalf = np.real(scipy.linalg.sqrtm(Pxx))
-						ellipsP = np.zeros(circlP.shape)
-						for kj in range(circlP.shape[0]):
-							ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mux
-						if jk == 0:
-							ax.plot(ellipsP[:,0],ellipsP[:,1],'m--')
-						else:
-							ax.plot(ellipsP[:,0],ellipsP[:,1],'c--')
-						# transform the points circlP through P^(1/2)*circlP + mu
-						Phalf = np.real(scipy.linalg.sqrtm(Pxx0))
-						ellipsP = np.zeros(circlP.shape)
-						for kj in range(circlP.shape[0]):
-							ellipsP[kj,:] = np.dot(Phalf,circlP[kj,:])+mux
-						if jk == 0:
-							ax.plot(ellipsP[:,0],ellipsP[:,1],'b--')
-						else:
-							ax.plot(ellipsP[:,0],ellipsP[:,1],'r--')
-						# plot the truth state
-						ax.plot(xk[k,0],xk[k,1],'ks')
-					'''
-
 					fig[k].show()
 				raw_input("Return to quit")
 				for k in range(nSteps):
 					fig[k].savefig('stepByStep/sir_' + str(Nsu) + "_" + str(k) + '.png')
 					plt.close(fig[k])
 		else:
+			if best_error:
+				
+				# get the mean NEES value versus simulation time across all sims
+				nees_mean = np.sum(nees_history,axis=1)/Ns
+				# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
+				chiUpper = stats.chi2.ppf(.975,2.0*Ns)/float(Ns)
+				chiLower = stats.chi2.ppf(.025,2.0*Ns)/float(Ns)
+				# find fraction of inliers
+				l1 = (nees_mean < chiUpper).nonzero()[0]
+				l2 = (nees_mean > chiLower).nonzero()[0]
+				# get number of inliers
+				len_in = len(set(l1).intersection(l2))
+				# get number of super (above) liers (sic)
+				len_super = len((nees_mean > chiUpper).nonzero()[0])
+				# get number of sub-liers (below)
+				len_sub = len((nees_mean < chiLower).nonzero()[0])
+
+				print("Conservative (below 95%% bounds): %f" % (float(len_sub)/float(nSteps)))
+				print("Optimistic (above 95%% bounds): %f" % (float(len_super)/float(nSteps)))
+
+				# save metrics
+				FID = open('bestErrors_sir_' + str(Nsu) + '_' + nameNow + '.txt','w')
+				FID.write("mse1,mse2,nees_below95,nees_above95\n")
+				FID.write("%f,%f,%f,%f\n" % (mse_tot[0],mse_tot[1],float(len_sub)/float(nSteps),float(len_super)/float(nSteps)))
+				FID.close()
+				return
+			print("Passing to exit")
+			pass
 			# get the mean NEES value versus simulation time across all sims
 			nees_mean = np.sum(nees_history,axis=1)/Ns
 			# get 95% confidence bounds for chi-sqaured... the df is the number of sims times the dimension of the state
